@@ -1,0 +1,24 @@
+** Important git commands for VS Code:
+
+1. Show the current state of your repository. i.e. What branch your on, changed files that haven't been staged, Staged files ready to commit, 
+
+
+
+2. Commit your changes
+git add .
+git commit -m "Describe your changes"
+
+    Stages your changes and saves them in your local Git history
+
+3. Connect to a remote repository 
+git remote add origin https://github.com/vasudevnair113/academylovesaim.git
+
+    Links your local repository to one hosted on GitHub or another service. Usually done once.
+
+4. Pull the latest changes
+git pull origin main
+
+    Downloads and integrates changes from the remote main branch
+    To upload your commits, use git push origin main. Substitute your branch name if it isn’t main.
+
+
