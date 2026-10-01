@@ -1,4 +1,17 @@
 ** Important git commands for VS Code:
+################################################################
+FOLLOW THIS ORDER 
+
+git status - gets status on your stuff 
+git switch -c {new branch name no spaces} - switch to branch 
+git add {file names you want to add} or . - add file 
+git commit -m "commit message" - commit the added file 
+git push -u origin {file/ files you want to commit}
+
+################################################################
+
+
+
 
 1. Show the current state of your repository. i.e. What branch your on, changed files that haven't been staged, Staged files ready to commit, 
 
