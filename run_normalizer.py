@@ -14,6 +14,7 @@ def main() -> None:
             "target": ROOT / "data/input/target.json",
             "walmart": ROOT / "data/input/walmart.json",
             "bestbuy": ROOT / "data/input/bestbuy.json",
+            "amazon": ROOT / "data/input/amazon.json",
         },
         output_path=output_path,
     )

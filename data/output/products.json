@@ -1,18 +1,23 @@
 {
   "products": [
     {
-      "name": "Example Laptop 14",
+      "name": "Example Laptop 14 - 16GB RAM, 512GB Storage",
       "brand": "Example",
       "model_number": "EX14-16-512",
       "gtin": null,
       "category": "laptop",
       "specs": {
+        "color": "Silver",
         "cpu": "Example CPU",
         "ram_gb": 16,
         "screen_inches": 14.0,
         "storage_gb": 512
       },
       "sources": [
+        {
+          "retailer": "amazon",
+          "url": null
+        },
         {
           "retailer": "target",
           "url": null
@@ -28,6 +33,13 @@
       ],
       "evidence": {
         "name": [
+          {
+            "source": {
+              "retailer": "amazon",
+              "url": null
+            },
+            "value": "Example Laptop 14 - 16GB RAM, 512GB Storage"
+          },
           {
             "source": {
               "retailer": "target",
@@ -53,6 +65,13 @@
         "brand": [
           {
             "source": {
+              "retailer": "amazon",
+              "url": null
+            },
+            "value": "Example"
+          },
+          {
+            "source": {
               "retailer": "target",
               "url": null
             },
@@ -74,6 +93,13 @@
           }
         ],
         "model_number": [
+          {
+            "source": {
+              "retailer": "amazon",
+              "url": null
+            },
+            "value": "EX14-16-512"
+          },
           {
             "source": {
               "retailer": "target",
@@ -99,6 +125,13 @@
         "category": [
           {
             "source": {
+              "retailer": "amazon",
+              "url": null
+            },
+            "value": "laptop"
+          },
+          {
+            "source": {
               "retailer": "target",
               "url": null
             },
@@ -119,7 +152,23 @@
             "value": "laptop"
           }
         ],
+        "specs.color": [
+          {
+            "source": {
+              "retailer": "amazon",
+              "url": null
+            },
+            "value": "Silver"
+          }
+        ],
         "specs.cpu": [
+          {
+            "source": {
+              "retailer": "amazon",
+              "url": null
+            },
+            "value": "Example CPU"
+          },
           {
             "source": {
               "retailer": "walmart",
@@ -129,6 +178,13 @@
           }
         ],
         "specs.ram_gb": [
+          {
+            "source": {
+              "retailer": "amazon",
+              "url": null
+            },
+            "value": 16
+          },
           {
             "source": {
               "retailer": "target",
@@ -147,6 +203,13 @@
         "specs.screen_inches": [
           {
             "source": {
+              "retailer": "amazon",
+              "url": null
+            },
+            "value": 14.0
+          },
+          {
+            "source": {
               "retailer": "bestbuy",
               "url": null
             },
@@ -154,6 +217,13 @@
           }
         ],
         "specs.storage_gb": [
+          {
+            "source": {
+              "retailer": "amazon",
+              "url": null
+            },
+            "value": 512
+          },
           {
             "source": {
               "retailer": "target",

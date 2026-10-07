@@ -7,9 +7,10 @@ from normalizer.models import (
 
 
 RETAILER_PRIORITY = {
-    "target": 0,
-    "walmart": 1,
-    "bestbuy": 2,
+    "amazon": 0,
+    "target": 1,
+    "walmart": 2,
+    "bestbuy": 3,
 }
 
 
