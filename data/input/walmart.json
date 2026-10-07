@@ -1,0 +1,10 @@
+{
+  "productName": "Example 14-inch Notebook",
+  "brand": "Example",
+  "modelNumber": "EX14-16-512",
+  "productType": "Notebook Computers",
+  "specifications": {
+    "Installed Memory": "16GB",
+    "Processor": "Example CPU"
+  }
+}

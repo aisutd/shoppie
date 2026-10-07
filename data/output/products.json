@@ -1,0 +1,178 @@
+{
+  "products": [
+    {
+      "name": "Example Laptop 14",
+      "brand": "Example",
+      "model_number": "EX14-16-512",
+      "gtin": null,
+      "category": "laptop",
+      "specs": {
+        "cpu": "Example CPU",
+        "ram_gb": 16,
+        "screen_inches": 14.0,
+        "storage_gb": 512
+      },
+      "sources": [
+        {
+          "retailer": "target",
+          "url": null
+        },
+        {
+          "retailer": "walmart",
+          "url": null
+        },
+        {
+          "retailer": "bestbuy",
+          "url": null
+        }
+      ],
+      "evidence": {
+        "name": [
+          {
+            "source": {
+              "retailer": "target",
+              "url": null
+            },
+            "value": "Example Laptop 14"
+          },
+          {
+            "source": {
+              "retailer": "walmart",
+              "url": null
+            },
+            "value": "Example 14-inch Notebook"
+          },
+          {
+            "source": {
+              "retailer": "bestbuy",
+              "url": null
+            },
+            "value": "Example Laptop"
+          }
+        ],
+        "brand": [
+          {
+            "source": {
+              "retailer": "target",
+              "url": null
+            },
+            "value": "Example"
+          },
+          {
+            "source": {
+              "retailer": "walmart",
+              "url": null
+            },
+            "value": "Example"
+          },
+          {
+            "source": {
+              "retailer": "bestbuy",
+              "url": null
+            },
+            "value": "Example"
+          }
+        ],
+        "model_number": [
+          {
+            "source": {
+              "retailer": "target",
+              "url": null
+            },
+            "value": "EX14-16-512"
+          },
+          {
+            "source": {
+              "retailer": "walmart",
+              "url": null
+            },
+            "value": "EX14-16-512"
+          },
+          {
+            "source": {
+              "retailer": "bestbuy",
+              "url": null
+            },
+            "value": "EX14-16-512"
+          }
+        ],
+        "category": [
+          {
+            "source": {
+              "retailer": "target",
+              "url": null
+            },
+            "value": "laptop"
+          },
+          {
+            "source": {
+              "retailer": "walmart",
+              "url": null
+            },
+            "value": "laptop"
+          },
+          {
+            "source": {
+              "retailer": "bestbuy",
+              "url": null
+            },
+            "value": "laptop"
+          }
+        ],
+        "specs.cpu": [
+          {
+            "source": {
+              "retailer": "walmart",
+              "url": null
+            },
+            "value": "Example CPU"
+          }
+        ],
+        "specs.ram_gb": [
+          {
+            "source": {
+              "retailer": "target",
+              "url": null
+            },
+            "value": 16
+          },
+          {
+            "source": {
+              "retailer": "walmart",
+              "url": null
+            },
+            "value": 16
+          }
+        ],
+        "specs.screen_inches": [
+          {
+            "source": {
+              "retailer": "bestbuy",
+              "url": null
+            },
+            "value": 14.0
+          }
+        ],
+        "specs.storage_gb": [
+          {
+            "source": {
+              "retailer": "target",
+              "url": null
+            },
+            "value": 512
+          },
+          {
+            "source": {
+              "retailer": "bestbuy",
+              "url": null
+            },
+            "value": 512
+          }
+        ]
+      },
+      "conflicts": [],
+      "unmapped_attributes": {}
+    }
+  ],
+  "issues": []
+}
