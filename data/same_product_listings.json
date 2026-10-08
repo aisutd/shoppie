@@ -1,0 +1,113 @@
+[
+  {
+    "id": "listing_010",
+    "source": "Example Electronics",
+    "source_url": "https://example.com/macbook-air-m5-24-512",
+    "title": "APPLE MBA 13 M5 24/512 Midnight",
+    "brand": "APPLE",
+    "model": "MBA",
+    "category": "Notebook",
+    "price": "$1,249.99",
+    "condition": "NEW",
+    "specifications": {
+      "chip": "M5",
+      "memory": "24GB",
+      "storage": "0.5 TB",
+      "color": "Midnight"
+    }
+  },
+  {
+    "id": "listing_011",
+    "source": "Tech Outlet",
+    "source_url": "https://example.com/apple-air-m5",
+    "title": "Apple MacBook Air 13-inch M5 512GB SSD",
+    "brand": "Apple",
+    "model": "MacBook Air",
+    "category": "Laptops",
+    "condition": "New",
+    "price": 1199.99,
+    "currency": "USD",
+    "specifications": {
+      "chip": "Apple M5",
+      "storage_gb": 512,
+      "screen_size_inches": 13.6,
+      "color": "Silver"
+    }
+  },
+  {
+    "id": "listing_012",
+    "source": "Laptop Marketplace",
+    "source_url": "https://example.com/macbook-air-m5-used",
+    "title": "MacBook Air M5 24GB 512GB - Excellent",
+    "brand": "Apple",
+    "model": "MacBook Air M5",
+    "category": "Laptops",
+    "condition": "Pre-Owned",
+    "availability": "In Stock",
+    "price": "999.00",
+    "currency": "USD",
+    "specifications": {
+      "processor": "M5",
+      "ram": "24 GB",
+      "storage": "512GB SSD",
+      "screen": "13-inch",
+      "color": "Midnight"
+    }
+  },
+  {
+    "id": "listing_013",
+    "source": "Computer Warehouse",
+    "source_url": "https://example.com/macbook-pro-m5",
+    "title": "Apple MacBook Pro M5 24GB Unified Memory 512GB SSD",
+    "brand": "Apple",
+    "model": "MacBook Pro",
+    "category": "Computers",
+    "condition": "New",
+    "price": 1399.99,
+    "currency": "USD",
+    "specifications": {
+      "chip": "Apple M5",
+      "memory_gb": 24,
+      "storage_gb": 512,
+      "screen_size_inches": 14.2,
+      "color": "Space Black"
+    }
+  },
+  {
+    "id": "listing_014",
+    "source": "Online Deals",
+    "source_url": "https://example.com/mba-m5-deal",
+    "title": "2026 Apple Air Laptop M5 / 24 Unified / 512 SSD",
+    "brand": "Apple",
+    "category": "Electronics",
+    "condition": null,
+    "availability": "Available",
+    "price": "$1,275",
+    "specs": {
+      "Processor": "Apple Silicon M5",
+      "Memory": "24 Unified",
+      "Storage": "512 SSD",
+      "Screen Size": "13.6\"",
+      "Color": "Not Listed"
+    }
+  },
+  {
+    "id": "listing_015",
+    "source": "Budget Laptops",
+    "source_url": "https://example.com/macbook-air-m4",
+    "title": "Apple MacBook Air 13-inch 24GB RAM 512GB SSD",
+    "brand": "Apple",
+    "model": "MacBook Air",
+    "category": "Laptop",
+    "condition": "New",
+    "price": 999.99,
+    "currency": "USD",
+    "specifications": {
+      "chip": "Apple M4",
+      "memory_gb": 24,
+      "storage_gb": 512,
+      "screen_size_inches": 13.6,
+      "color": "Sky Blue"
+    }
+  }
+]
