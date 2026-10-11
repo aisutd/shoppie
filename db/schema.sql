@@ -1,98 +1,74 @@
--- PURPOSE
--- Define the tables that organize Shoppie's product data.
--- This file currently contains comments only.
---
--- DATABASE BASICS
--- A table stores one kind of information.
--- A row represents one item.
--- A column stores one attribute.
--- A primary key uniquely identifies a row in our database.
--- A foreign key connects a row to another table.
---
--- TABLE 1: retailers
--- Represents a known source of listings.
---
--- Proposed columns:
--- id: Internal primary key.
--- retailer_key: Stable scraper key, such as "demo_store_a".
--- name: Human-readable retailer name.
---
--- Constraint:
--- retailer_key must be unique.
---
--- TABLE 2: listings
--- Represents one product listing at one retailer.
--- Two retailers selling the same product still have separate listings.
---
--- Proposed columns:
--- id: Internal primary key.
--- retailer_id: Foreign key referencing retailers.id.
--- retailer_sku: Retailer's identifier, stored as text; nullable.
--- source_url: Product page URL.
--- source_url_hash: Hash of the URL for indexed identification.
--- title: Observed product title; nullable.
--- brand: Observed brand; nullable.
--- model_number: Manufacturer model identifier; nullable.
--- gtin: Observed trade-item identifier, stored as text; nullable.
--- category: Product category; nullable.
--- attributes: JSON containing specifications; nullable.
---
--- Initial identity rule:
--- The combination of retailer_id and source_url_hash is unique.
--- The scraper must provide a stable URL identifying the selected variant.
---
--- TABLE 3: listing_observations
--- Represents what the scraper observed at a particular time.
--- Keep older observations when a price changes.
---
--- Proposed columns:
--- id: Internal primary key.
--- listing_id: Foreign key referencing listings.id.
--- scraped_at: Observation time, stored consistently in UTC.
--- price: DECIMAL value; nullable.
--- currency: Explicit currency code; nullable.
--- availability: Observed availability; nullable.
--- raw_payload: Original scraped record stored as JSON.
---
--- Constraints:
--- The combination of listing_id and scraped_at is unique.
--- A known price cannot be negative.
---
--- TABLE 4: listing_embeddings
--- Stores vectors generated from current listing descriptions.
---
--- Proposed columns:
--- listing_id: Foreign key referencing listings.id.
--- model_name: Embedding model identifier.
--- model_revision: Exact model revision used.
--- template_version: Version of our text-building rules.
--- input_text: Exact text passed to the model.
--- input_hash: Hash used to detect text changes.
--- dimensions: Number of values in the vector.
--- vector: Numerical array stored as JSON for this prototype.
--- created_at: Time the embedding was generated.
---
--- Constraint:
--- One current embedding per listing and model/template configuration.
---
--- RELATIONSHIPS
--- One retailer has many listings.
--- One listing has many observations.
--- One listing can have embeddings for different configurations.
---
--- LATER EXTENSION
--- Add a products table for reviewed canonical product variants.
--- Link listings to a product only after checking identity and variants.
---
--- TODO
--- Draw the relationships before writing CREATE TABLE statements.
--- Choose SQL types and explain each choice.
--- Decide which columns permit NULL.
--- Add primary keys, foreign keys, and uniqueness constraints.
--- Write queries that demonstrate the relationships.
---
--- QUESTIONS
--- Why should price use DECIMAL rather than FLOAT?
--- Why should SKU and GTIN be stored as text?
--- Why should observations be separate from listings?
--- What happens when the same JSON file is imported twice?
+-- STEP 2: MySQL 8.0.16+ learning skeleton. No executable SQL yet.
+-- Mentor: create an empty shoppie database and an application user first.
+-- Mentees: select that database, then implement each block in order.
+-- Use InnoDB for transactions/foreign keys and utf8mb4 for text.
+-- Run this schema manually through Workbench or mysql for the first build.
+-- CREATE TABLE IF NOT EXISTS does not upgrade an existing table definition.
+
+-- TODO A: CREATE TABLE retailers (...);
+-- id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY
+-- retailer_key VARCHAR(32) NOT NULL UNIQUE
+-- name VARCHAR(100) NOT NULL
+-- WHY: one retailer row is referenced by many listings.
+-- TODO: INSERT known retailers: amazon/Amazon, walmart/Walmart,
+-- target/Target, best_buy/Best Buy. Make seeding repeatable without duplicates.
+
+-- TODO B: CREATE TABLE listings (...);
+-- id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY
+-- retailer_id BIGINT UNSIGNED NOT NULL REFERENCES retailers(id)
+-- retailer_sku VARCHAR(255) NULL (retailer identifier, not manufacturer model)
+-- source_url TEXT NOT NULL (stable URL for selected offer/variant)
+-- source_url_hash CHAR(64) NOT NULL (SHA-256 hex of source_url)
+-- title TEXT NULL
+-- brand VARCHAR(255) NULL
+-- model_number VARCHAR(255) NULL
+-- gtin VARCHAR(32) NULL (text preserves leading zeros)
+-- category VARCHAR(100) NULL
+-- attributes JSON NOT NULL (cleaned specifications, {} allowed)
+-- details_observed_at DATETIME(6) NOT NULL (UTC, latest descriptive snapshot)
+-- UNIQUE (retailer_id, source_url_hash)
+-- INDEX (brand, model_number); INDEX (category)
+-- Foreign key: retailer_id -> retailers.id, prevent deletion of referenced rows.
+-- WHY: keep each store's listing separate, even for the same physical product.
+-- Beta identity: retailer + stable URL. Scraper must preserve selected variant
+-- and one selected offer. Multiple sellers/offers need an extended identity.
+
+-- TODO C: CREATE TABLE listing_observations (...);
+-- id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY
+-- listing_id BIGINT UNSIGNED NOT NULL REFERENCES listings(id)
+-- scraped_at DATETIME(6) NOT NULL (UTC observation time, not import time)
+-- price DECIMAL(12,2) NULL
+-- shipping_cost DECIMAL(12,2) NULL (NULL unknown, 0 known free shipping)
+-- currency CHAR(3) NULL (USD only for known monetary amounts in beta)
+-- condition VARCHAR(32) NULL
+-- seller VARCHAR(255) NULL
+-- availability VARCHAR(32) NULL
+-- raw_payload JSON NOT NULL (original COMPLETE scraper record)
+-- UNIQUE (listing_id, scraped_at), also supports history lookup by listing/time
+-- CHECK price IS NULL OR price >= 0; same check for shipping_cost
+-- CHECK known price/shipping requires currency = 'USD' AND currency IS NOT NULL
+-- CHECK condition is NULL/new/used/refurbished/open_box
+-- CHECK availability is NULL/in_stock/out_of_stock/unknown
+-- Foreign key: listing_id -> listings.id, prevent deletion of referenced rows.
+-- WHY: a price change appends history rather than replacing the old price.
+-- Duplicate same time/data: skip. Same time/different data: report conflict.
+
+-- TODO D (LATER): CREATE TABLE listing_embeddings (...);
+-- id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY
+-- listing_id BIGINT UNSIGNED NOT NULL REFERENCES listings(id)
+-- model_name VARCHAR(191) NOT NULL
+-- model_revision VARCHAR(64) NOT NULL
+-- template_version VARCHAR(32) NOT NULL
+-- input_text TEXT NOT NULL
+-- input_hash CHAR(64) NOT NULL
+-- dimensions INT UNSIGNED NOT NULL
+-- vector JSON NOT NULL
+-- created_at DATETIME(6) NOT NULL (UTC)
+-- UNIQUE (listing_id, model_name, model_revision, template_version)
+-- CHECK dimensions > 0; vector must be a JSON array of the stated length.
+-- Foreign key: listing_id -> listings.id.
+-- WHY: reuse unchanged descriptions; record the model/configuration used.
+-- This table is optional until core ingestion and retrieval are working.
+
+-- LATER: reviewed canonical products and listing-to-product relationships.
+-- Never collapse retailer listings or price history when confirming matches.
