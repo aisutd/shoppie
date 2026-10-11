@@ -1,0 +1,397 @@
+{
+  "schema_version": 1,
+  "listings": [
+    {
+      "retailer_key": "demo_store_a",
+      "retailer_sku": "001234",
+      "source_url": "https://store-a.example/products/q100-black",
+      "scraped_at": "2026-10-11T15:00:00Z",
+      "raw": {
+        "title": "Acme QuietSound Q100 Wireless Headphones - Black",
+        "price": "$99.99",
+        "currency": "USD",
+        "brand": "Acme",
+        "model": "Q100",
+        "gtin": null,
+        "category": "headphones",
+        "attributes": {
+          "color": "black",
+          "connectivity": "wireless",
+          "condition": "new"
+        },
+        "availability": "in_stock"
+      }
+    },
+    {
+      "retailer_key": "demo_store_b",
+      "retailer_sku": "B-7310",
+      "source_url": "https://store-b.example/products/q100-black",
+      "scraped_at": "2026-10-11T15:00:00Z",
+      "raw": {
+        "title": "ACME Q100 QuietSound Headphones, Wireless, Black",
+        "price": "$94.99",
+        "currency": "USD",
+        "brand": "Acme",
+        "model": "Q100",
+        "gtin": null,
+        "category": "headphones",
+        "attributes": {
+          "color": "black",
+          "connectivity": "wireless",
+          "condition": "new"
+        },
+        "availability": "in_stock"
+      }
+    },
+    {
+      "retailer_key": "demo_store_a",
+      "retailer_sku": "001235",
+      "source_url": "https://store-a.example/products/q100-white",
+      "scraped_at": "2026-10-11T15:00:00Z",
+      "raw": {
+        "title": "Acme QuietSound Q100 Wireless Headphones - White",
+        "price": "$99.99",
+        "currency": "USD",
+        "brand": "Acme",
+        "model": "Q100",
+        "gtin": null,
+        "category": "headphones",
+        "attributes": {
+          "color": "white",
+          "connectivity": "wireless",
+          "condition": "new"
+        },
+        "availability": "in_stock"
+      }
+    },
+    {
+      "retailer_key": "demo_store_b",
+      "retailer_sku": "B-7311",
+      "source_url": "https://store-b.example/products/q100-black-refurbished",
+      "scraped_at": "2026-10-11T15:00:00Z",
+      "raw": {
+        "title": "Acme Q100 Black Wireless Headphones - Refurbished",
+        "price": "$69.99",
+        "currency": "USD",
+        "brand": "Acme",
+        "model": "Q100",
+        "gtin": null,
+        "category": "headphones",
+        "attributes": {
+          "color": "black",
+          "connectivity": "wireless",
+          "condition": "refurbished"
+        },
+        "availability": "in_stock"
+      }
+    },
+    {
+      "retailer_key": "demo_store_a",
+      "retailer_sku": "001236",
+      "source_url": "https://store-a.example/products/q100-ear-pads",
+      "scraped_at": "2026-10-11T15:00:00Z",
+      "raw": {
+        "title": "SoftFit Replacement Ear Pads Compatible with Acme Q100",
+        "price": "$14.99",
+        "currency": "USD",
+        "brand": "SoftFit",
+        "model": "EP-Q100",
+        "gtin": null,
+        "category": "headphone_accessories",
+        "attributes": {
+          "color": "black",
+          "compatible_model": "Acme Q100",
+          "pack_quantity": "2",
+          "condition": "new"
+        },
+        "availability": "in_stock"
+      }
+    },
+    {
+      "retailer_key": "demo_store_a",
+      "retailer_sku": "002100",
+      "source_url": "https://store-a.example/products/novaphone-n10-128",
+      "scraped_at": "2026-10-11T15:00:00Z",
+      "raw": {
+        "title": "NovaPhone N10 Smartphone 128 GB - Midnight",
+        "price": "$599.00",
+        "currency": "USD",
+        "brand": "NovaTech",
+        "model": "N10",
+        "gtin": null,
+        "category": "smartphones",
+        "attributes": {
+          "storage_gb": "128",
+          "color": "midnight",
+          "network": "unlocked",
+          "condition": "new"
+        },
+        "availability": "in_stock"
+      }
+    },
+    {
+      "retailer_key": "demo_store_b",
+      "retailer_sku": "B-8100",
+      "source_url": "https://store-b.example/products/novaphone-n10-128",
+      "scraped_at": "2026-10-11T15:00:00Z",
+      "raw": {
+        "title": "NovaTech N10 NovaPhone, Unlocked, Midnight, 128GB",
+        "price": "$579.00",
+        "currency": "USD",
+        "brand": "NovaTech",
+        "model": "N10",
+        "gtin": null,
+        "category": "smartphones",
+        "attributes": {
+          "storage_gb": "128",
+          "color": "midnight",
+          "network": "unlocked",
+          "condition": "new"
+        },
+        "availability": "in_stock"
+      }
+    },
+    {
+      "retailer_key": "demo_store_a",
+      "retailer_sku": "002101",
+      "source_url": "https://store-a.example/products/novaphone-n10-256",
+      "scraped_at": "2026-10-11T15:00:00Z",
+      "raw": {
+        "title": "NovaPhone N10 Smartphone 256 GB - Midnight",
+        "price": "$699.00",
+        "currency": "USD",
+        "brand": "NovaTech",
+        "model": "N10",
+        "gtin": null,
+        "category": "smartphones",
+        "attributes": {
+          "storage_gb": "256",
+          "color": "midnight",
+          "network": "unlocked",
+          "condition": "new"
+        },
+        "availability": "in_stock"
+      }
+    },
+    {
+      "retailer_key": "demo_store_b",
+      "retailer_sku": null,
+      "source_url": "https://store-b.example/products/novaphone-n10-unspecified",
+      "scraped_at": "2026-10-11T15:00:00Z",
+      "raw": {
+        "title": "NovaPhone N10 - Midnight",
+        "price": null,
+        "currency": null,
+        "brand": "NovaTech",
+        "model": "N10",
+        "gtin": null,
+        "category": "smartphones",
+        "attributes": {
+          "storage_gb": null,
+          "color": "midnight",
+          "network": null,
+          "condition": null
+        },
+        "availability": null
+      }
+    },
+    {
+      "retailer_key": "demo_store_a",
+      "retailer_sku": "003100",
+      "source_url": "https://store-a.example/products/brightwash-1500-single",
+      "scraped_at": "2026-10-11T15:00:00Z",
+      "raw": {
+        "title": "BrightWash Original Laundry Detergent 1.5 L",
+        "price": "$12.49",
+        "currency": "USD",
+        "brand": "BrightWash",
+        "model": "BW-ORIGINAL",
+        "gtin": null,
+        "category": "laundry_detergent",
+        "attributes": {
+          "volume_ml": "1500",
+          "pack_quantity": "1",
+          "scent": "original"
+        },
+        "availability": "in_stock"
+      }
+    },
+    {
+      "retailer_key": "demo_store_b",
+      "retailer_sku": "B-9200",
+      "source_url": "https://store-b.example/products/brightwash-1500-single",
+      "scraped_at": "2026-10-11T15:00:00Z",
+      "raw": {
+        "title": "BrightWash Laundry Detergent Original, 1500 mL, 1 Bottle",
+        "price": "$11.99",
+        "currency": "USD",
+        "brand": "BrightWash",
+        "model": "BW-ORIGINAL",
+        "gtin": null,
+        "category": "laundry_detergent",
+        "attributes": {
+          "volume_ml": "1500",
+          "pack_quantity": "1",
+          "scent": "original"
+        },
+        "availability": "in_stock"
+      }
+    },
+    {
+      "retailer_key": "demo_store_a",
+      "retailer_sku": "003101",
+      "source_url": "https://store-a.example/products/brightwash-1500-three",
+      "scraped_at": "2026-10-11T15:00:00Z",
+      "raw": {
+        "title": "BrightWash Original Laundry Detergent 1.5 L - 3 Pack",
+        "price": "$33.99",
+        "currency": "USD",
+        "brand": "BrightWash",
+        "model": "BW-ORIGINAL",
+        "gtin": null,
+        "category": "laundry_detergent",
+        "attributes": {
+          "volume_ml": "1500",
+          "pack_quantity": "3",
+          "scent": "original"
+        },
+        "availability": "in_stock"
+      }
+    },
+    {
+      "retailer_key": "demo_store_a",
+      "retailer_sku": "004100",
+      "source_url": "https://store-a.example/products/swiftbook-s14-16-512",
+      "scraped_at": "2026-10-11T15:00:00Z",
+      "raw": {
+        "title": "SwiftBook S14 Laptop, 16 GB RAM, 512 GB SSD",
+        "price": "$1,099.99",
+        "currency": "USD",
+        "brand": "SwiftCompute",
+        "model": "S14",
+        "gtin": null,
+        "category": "laptops",
+        "attributes": {
+          "ram_gb": "16",
+          "storage_gb": "512",
+          "storage_type": "SSD",
+          "screen_inches": "14",
+          "condition": "new"
+        },
+        "availability": "in_stock"
+      }
+    },
+    {
+      "retailer_key": "demo_store_b",
+      "retailer_sku": "B-10100",
+      "source_url": "https://store-b.example/products/swiftbook-s14-16-512",
+      "scraped_at": "2026-10-11T15:00:00Z",
+      "raw": {
+        "title": "SwiftCompute S14 SwiftBook 14-inch Laptop - 512GB SSD / 16GB RAM",
+        "price": "$1,049.99",
+        "currency": "USD",
+        "brand": "SwiftCompute",
+        "model": "S14",
+        "gtin": null,
+        "category": "laptops",
+        "attributes": {
+          "ram_gb": "16",
+          "storage_gb": "512",
+          "storage_type": "SSD",
+          "screen_inches": "14",
+          "condition": "new"
+        },
+        "availability": "in_stock"
+      }
+    },
+    {
+      "retailer_key": "demo_store_b",
+      "retailer_sku": "B-10101",
+      "source_url": "https://store-b.example/products/swiftbook-s14-8-256",
+      "scraped_at": "2026-10-11T15:00:00Z",
+      "raw": {
+        "title": "SwiftBook S14 Laptop, 8 GB RAM, 256 GB SSD",
+        "price": "$849.99",
+        "currency": "USD",
+        "brand": "SwiftCompute",
+        "model": "S14",
+        "gtin": null,
+        "category": "laptops",
+        "attributes": {
+          "ram_gb": "8",
+          "storage_gb": "256",
+          "storage_type": "SSD",
+          "screen_inches": "14",
+          "condition": "new"
+        },
+        "availability": "in_stock"
+      }
+    },
+    {
+      "retailer_key": "demo_store_a",
+      "retailer_sku": "005100",
+      "source_url": "https://store-a.example/products/ceramic-mug-blue",
+      "scraped_at": "2026-10-11T15:00:00Z",
+      "raw": {
+        "title": "Ceramic Coffee Mug - Blue",
+        "price": "$8.99",
+        "currency": "USD",
+        "brand": null,
+        "model": null,
+        "gtin": null,
+        "category": "drinkware",
+        "attributes": {
+          "color": "blue",
+          "capacity_ml": null,
+          "material": "ceramic",
+          "pack_quantity": "1"
+        },
+        "availability": "in_stock"
+      }
+    },
+    {
+      "retailer_key": "demo_store_b",
+      "retailer_sku": "B-11100",
+      "source_url": "https://store-b.example/products/ceramic-mug-blue",
+      "scraped_at": "2026-10-11T15:00:00Z",
+      "raw": {
+        "title": "Blue Ceramic Mug, 350 mL",
+        "price": "$7.49",
+        "currency": "USD",
+        "brand": null,
+        "model": null,
+        "gtin": null,
+        "category": "drinkware",
+        "attributes": {
+          "color": "blue",
+          "capacity_ml": "350",
+          "material": "ceramic",
+          "pack_quantity": "1"
+        },
+        "availability": "in_stock"
+      }
+    },
+    {
+      "retailer_key": "demo_store_b",
+      "retailer_sku": "B-11101",
+      "source_url": "https://store-b.example/products/ceramic-mug-red",
+      "scraped_at": "2026-10-11T15:00:00Z",
+      "raw": {
+        "title": "Red Ceramic Mug, 350 mL",
+        "price": "$7.49",
+        "currency": "USD",
+        "brand": null,
+        "model": null,
+        "gtin": null,
+        "category": "drinkware",
+        "attributes": {
+          "color": "red",
+          "capacity_ml": "350",
+          "material": "ceramic",
+          "pack_quantity": "1"
+        },
+        "availability": "out_of_stock"
+      }
+    }
+  ]
+}
