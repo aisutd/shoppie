@@ -74,6 +74,22 @@ Scraper JSON
 
 ## Important distinctions
 
+### Dummy retailer listings
+
+`example_product.json` contains 40 synthetic tech listings: 10 each for
+Amazon (`amazon`), Walmart (`walmart`), Target (`target`), and Best Buy
+(`best_buy`). Product names reference real product families, but prices,
+SKUs, availability, specifications, and timestamps are illustrative, not
+scraped or verified retailer data. The `.example` URLs are placeholders.
+The fixture includes matching products across retailers, different storage
+sizes, refurbished items, an out-of-stock item, and missing fields.
+
+GTIN means Global Trade Item Number: a product identifier commonly encoded
+in a barcode, such as a 12-digit UPC or 13-digit EAN. Store it as text to
+preserve leading zeros. The same product variant can share a GTIN across
+retailers, while a retailer SKU identifies a listing within that retailer.
+All fixture GTINs are `null` because no identifiers have been verified.
+
 - A product is different from a retailer's listing for that product.
 - A retailer SKU is different from a universal product identifier.
 - A missing value is different from an invalid value.
