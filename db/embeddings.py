@@ -1,55 +1,38 @@
-# PURPOSE
-# Build consistent product text, generate embeddings, and store them.
-#
-# INPUT
-# Normalized listings from MySQL.
-#
-# OUTPUT
-# One numerical vector for each listing with usable product text.
-#
-# FIRST MODEL
-# Start with a standard single-vector SentenceTransformer.
-# Suggested baseline: sentence-transformers/all-MiniLM-L6-v2.
-# This model produces 384 values per embedding.
-#
-# TEXT TEMPLATE
-# Brand | Product title | Model | Key attributes
-#
-# EXAMPLE
-# Acme | QuietSound Q100 Headphones | model: Q100 |
-# color: black | connectivity: wireless | condition: new
-#
-# INCLUDE
-# Brand, product name, manufacturer model, and identifying specifications.
-#
-# EXCLUDE
-# Price, retailer name, retailer SKU, URL, and scrape timestamp.
-# These describe the offer or source rather than product identity.
-#
-# MISSING DATA
-# Omit unavailable fields from the text.
-# Do not invent specifications.
-# Skip records with no usable product description.
-#
-# CONSISTENCY
-# Sort attributes so the same information produces the same text.
-# Record the model name, exact revision, and template version.
-# Only compare vectors produced by compatible configurations.
-#
-# UPDATES
-# Hash the input text.
-# Reuse the embedding if the input and configuration are unchanged.
-# Recompute when product text changes.
-# A price-only change should not require a new embedding.
-#
-# TODO
-# Implement build_text(listing).
-# Load the model once per run.
-# Encode and normalize vectors.
-# Store vectors and their metadata in MySQL.
-#
-# QUESTIONS
-# What is an embedding?
-# Why record the exact input text?
-# Why exclude price?
-# Why must outdated embeddings be refreshed or excluded?
+"""Later stage: enrich stored listings after Steps 1-6 work.
+
+Run as a separate batch; ingestion and SQL retrieval never require a model.
+Use a single-vector SentenceTransformer and record its exact revision.
+"""
+
+
+def build_text(listing: dict) -> str | None:
+    """Describe product identity consistently for semantic candidate retrieval."""
+    # TODO: Brand | title | model | sorted identifying attributes.
+    # Omit missing values; None if no usable product description.
+    # Exclude price, shipping, seller, retailer, SKU, URL and timestamp.
+    # Keep offer condition separate; filter it during comparison.
+    raise NotImplementedError("Mentee TODO later: build embedding text")
+
+
+def generate_embedding(model, text: str) -> list[float]:
+    """Turn one description into a normalized numerical vector."""
+    # TODO: Encode with normalize_embeddings=True; convert output to list.
+    # Validate finite values/dimensions; derive dimension from chosen model.
+    raise NotImplementedError("Mentee TODO later: generate vector")
+
+
+def save_embedding(connection, listing_id: int, metadata: dict, vector: list[float]) -> None:
+    """Store a reproducible vector and replace an outdated one for this config."""
+    # metadata: model_name, model_revision, template_version, input_text,
+    # input_hash (SHA-256), dimensions, created_at (UTC).
+    # TODO: Parameterized insert/update, JSON vector, caller owns transaction.
+    raise NotImplementedError("Mentee TODO later: store embedding")
+
+
+def refresh_embeddings(connection, model, model_name: str, model_revision: str,
+                       template_version: str) -> dict:
+    """Generate only missing/changed descriptions using one loaded model."""
+    # TODO: Read listings; build_text; hash text; compare saved configuration.
+    # Reuse unchanged vectors; generate/save changed vectors; commit each row.
+    # Price-only updates do not change input text. Return created/reused/skipped.
+    raise NotImplementedError("Mentee TODO later: refresh embeddings")

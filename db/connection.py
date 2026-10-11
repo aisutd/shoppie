@@ -1,39 +1,31 @@
-# PURPOSE
-# Create a reusable connection to the MySQL database.
-#
-# INPUT
-# Configuration loaded from environment variables:
-# DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD.
-#
-# OUTPUT
-# A database connection that other scripts can use.
-#
-# EXPECTED BEHAVIOR
-# Read configuration.
-# Check that required settings exist.
-# Connect using mysql-connector-python.
-# Use UTC consistently for database timestamps.
-# Return the connection.
-# Close connections when work is complete.
-#
-# IMPORTANT
-# Do not put real passwords in this file or commit them to GitHub.
-# Keep local credentials in an ignored .env file.
-# Commit an .env.example containing placeholders.
-# Application scripts should use an application account.
-#
-# LOCAL DEVELOPMENT
-# Each mentee can run their own MySQL instance.
-# Everyone shares the same schema and configuration variable names.
-# Separate local databases do not automatically share their records.
-#
-# TODO
-# Implement a connect() function.
-# Write a small connection check using SELECT DATABASE(), VERSION().
-# Explain the difference between MySQL and MySQL Workbench.
-#
-# QUESTIONS
-# What is a database host?
-# What is a port?
-# What could cause "connection refused"?
-# What could cause "access denied"?
+"""Step 3: share one MySQL connection method across the database scripts.
+
+MySQL is the running database server; Workbench is a client used to view it.
+Install mysql-connector-python when implementing this file. Import it inside
+connect() so students can read/import this skeleton before installing it.
+"""
+
+
+def read_config() -> dict:
+    """Read connection settings so credentials do not live in source code."""
+    # TODO: Read DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD from environment.
+    # TODO: Validate required settings; convert DB_PORT to an integer.
+    # A .env file is not loaded automatically: document shell exports OR use
+    # python-dotenv explicitly. Never print the password in diagnostics.
+    raise NotImplementedError("Mentee TODO: read database configuration")
+
+
+def connect():
+    """Return an open MySQL connection; the caller closes it after use."""
+    # TODO: Call read_config(), then mysql.connector.connect(**config).
+    # TODO: Set the session time zone to '+00:00' and autocommit=False.
+    # Database must already exist (mentor provisions it in Step 2).
+    # TODO: Give connection failures a helpful message without credentials.
+    raise NotImplementedError("Mentee TODO: connect to MySQL")
+
+
+def describe_connection(connection) -> dict:
+    """Show which database/server a student actually connected to."""
+    # TODO: SELECT DATABASE(), VERSION(); return database and version.
+    # TODO: Close the cursor; leave the caller's connection open.
+    raise NotImplementedError("Mentee TODO: describe connection")

@@ -1,124 +1,91 @@
-# Shoppie Database Learning Scaffold
+# Shoppie database build scaffold
 
-These files explain what the database pipeline should do.
-The Python and SQL files contain comments only and do not run yet.
+This folder contains intentionally unfinished function skeletons. Each TODO
+is student work; calling an unfinished function raises NotImplementedError.
+schema.sql contains table instructions, not executable SQL. Follow MENTOR_GUIDE.md.
 
-## Our goal
+## Responsibility and flow
 
-Take product listings from the scraper, clean the data, store it in
-MySQL, generate embeddings, and find potentially matching products.
+Scraper JSON -> ingest.load_batch -> normalize.normalize -> MySQL listings
+and observations -> queries. Embeddings and similarity run separately later.
 
-## How the database pipeline works
+| File | Purpose |
+| --- | --- |
+| example_product.json | Existing synthetic input fixture; preserve originals |
+| schema.sql | Tables, types, keys and relationships students implement |
+| connection.py | Read settings and open a shared MySQL connection |
+| normalize.py | Basic cleaning/validation; no SQL or product merging |
+| ingest.py | Coordinate import, transactions, duplicates and error reporting |
+| queries.py | Retrieve descriptions, latest offers and history |
+| embeddings.py | Later: generate vectors from product descriptions |
+| similarity.py | Later: retrieve candidates and explain identity evidence |
 
-```text
-Retailer product pages
-        |
-        v
-Python scraper collects product information
-        |
-        v
-Save the original records in a JSON file
-        |
-        v
-Validate and clean the records
-(missing values stay null; invalid values are flagged)
-        |
-        v
-Store listings and price observations in MySQL
-        |
-        v
-Build a text description for each listing
-(brand + title + model + important specifications)
-        |
-        v
-Use an embedding model to turn the text into a vector
-        |
-        v
-Store the vector and model information in MySQL
-        |
-        v
-Use Python to compare vectors with cosine similarity
-        |
-        v
-Find potentially matching listings across retailers
-        |
-        v
-Check identifiers and specifications
-        |
-        v
-Confirm a match, reject it, or leave it uncertain
-```
+## Input contract (schema_version 1)
 
-Each new scrape adds an observation so we can track price history.
-Embeddings help find candidates; they do not prove two listings are
-the same product.
+Use the exact envelope and field names in example_product.json:
+`{"schema_version": 1, "listings": [...]}`. Each row has retailer_key,
+retailer_sku, source_url, scraped_at, and raw. raw contains title, price,
+currency, brand, model, gtin, category, attributes and availability.
+Optional additions raw.shipping_cost and raw.seller default to null.
+Condition is read from raw.attributes.condition.
 
-->
-Scraper JSON
-→ validation and normalization
-→ MySQL listings and price observations
-→ embedding text
-→ embedding model
-→ vectors stored in MySQL
-→ similarity search
+Known retailer keys: amazon, walmart, target, best_buy. The fixture's 40 tech
+listings are fictional observations: URLs, prices and identifiers are demo data.
+One row represents ONE selected retailer offer/variant at ONE observation time.
 
-## Read the files in this order
+## Exact normalize(record) output contract
 
-1. example_products.json — what the scraper sends us
-2. schema.sql — how we organize the data
-3. connection.py — how Python connects to MySQL
-4. normalize.py — how we clean and validate records
-5. ingest.py — how records enter the database
-6. embeddings.py — how product descriptions become vectors
-7. similarity.py — how we find candidate matches
+Return a Python dictionary with these keys (not JSON yet):
 
-## Important distinctions
+| Key | Python type / rule |
+| --- | --- |
+| retailer_key | str, one of the four configured keys |
+| retailer_sku | str or None |
+| source_url | str, stable absolute HTTP(S) URL |
+| source_url_hash | str, SHA-256 hex of that URL |
+| title, brand, model_number, gtin, category | str or None; raw.model maps to model_number |
+| attributes | dict, normalized tech specs; condition removed into its own field |
+| scraped_at | timezone-aware UTC datetime |
+| price, shipping_cost | Decimal or None; nonnegative finite amount, at most 2 decimal places |
+| currency | USD or None; required when either amount is known |
+| condition | new, used, refurbished, open_box or None |
+| seller | str or None |
+| availability | in_stock, out_of_stock, unknown or None |
+| raw_payload | dict, deep copy of the original full input row |
 
-### Dummy retailer listings
+Missing data stays None. Incorrect types/formats raise ValueError naming the
+field. Do not mutate the raw input. Do not guess product specifications.
+Normalize category labels consistently (e.g. laptops -> laptop) and document
+the small alias map in normalize.py. Preserve unknown categories/attributes.
 
-`example_product.json` contains 40 synthetic tech listings: 10 each for
-Amazon (`amazon`), Walmart (`walmart`), Target (`target`), and Best Buy
-(`best_buy`). Product names reference real product families, but prices,
-SKUs, availability, specifications, and timestamps are illustrative, not
-scraped or verified retailer data. The `.example` URLs are placeholders.
-The fixture includes matching products across retailers, different storage
-sizes, refurbished items, an out-of-stock item, and missing fields.
+## Storage decisions
 
-GTIN means Global Trade Item Number: a product identifier commonly encoded
-in a barcode, such as a 12-digit UPC or 13-digit EAN. Store it as text to
-preserve leading zeros. The same product variant can share a GTIN across
-retailers, while a retailer SKU identifies a listing within that retailer.
-All fixture GTINs are `null` because no identifiers have been verified.
+- MySQL 8.0.16+; decimal money, JSON specs, DATETIME(6) timestamps in UTC.
+- Connection session uses UTC. Convert aware UTC timestamps to naive UTC
+  only at the connector boundary, and label returned timestamps as UTC.
+- Latest descriptive information lives in listings; observation values/history
+  live in listing_observations. Newer missing details are still missing.
+- Identity: retailer + stable URL hash, with full URL checked for consistency.
+  URL must distinguish variant/selected offer; URL cleanup is a scraper contract.
+- Same observation twice: skip. Same listing/time with different data: reject
+  as conflict. New time: append an observation. Older data cannot replace newer
+  listing details. Keep original input in raw_payload.
+- Per-record transaction covers listing updates and observation insertion.
+  Invalid rows are reported; infrastructure failures stop the import.
+- An unknown latest price stays unknown; display older prices as history only.
+- Condition and seller belong to the observed offer. Matching a model is only
+  candidate retrieval; capacity/color/condition still matter for comparison.
 
-- A product is different from a retailer's listing for that product.
-- A retailer SKU is different from a universal product identifier.
-- A missing value is different from an invalid value.
-- Similar descriptions do not prove two listings are the same product.
-- Storing vectors does not automatically create a vector-search index.
+## Setup to implement
 
-## Team A: Database and ingestion
+Mentor provisions database/user. Students implement the first three schema
+tables and retailer seeds. Add mysql-connector-python when implementing the
+connection. Set DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD through the shell
+or explicitly load an ignored .env file. A .env file alone is not loaded.
+Commit an .env.example with placeholders, not credentials.
 
-Implement schema.sql, connection.py, normalize.py, and ingest.py.
+From repository root, intended command after implementation:
+`python -m db.ingest --input db/example_product.json`.
 
-## Team B: Embeddings and matching
-
-Implement embeddings.py and similarity.py.
-Create examples of correct matches and misleading similarities.
-
-## Shared decisions
-
-Before implementation, agree on:
-- JSON field names and types.
-- What identifies a listing.
-- Required versus optional fields.
-- Supported price formats and currencies.
-- Attribute names and units.
-- What counts as the same product variant.
-
-## First demonstration
-
-Import the example file.
-Show the listings and prices in MySQL.
-Import the same file again without creating duplicates.
-Add a later observation with a different price.
-Generate embeddings and retrieve candidate matches.
+First finish storage and retrieval. Formal tests and live scraping follow later;
+manual demonstrations in the guide establish whether each build step works.
