@@ -1,0 +1,10 @@
+{
+  "title": "Example Laptop",
+  "manufacturer": "Example",
+  "modelNumber": "EX14-16-512",
+  "category": "Laptop",
+  "details": {
+    "Storage Capacity": "512 GB",
+    "Screen Size": "14 inches"
+  }
+}
