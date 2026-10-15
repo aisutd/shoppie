@@ -1,7 +1,7 @@
 """Checkpoint 3: turn untrusted strings into a validated Python record."""
 
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Literal
 
