@@ -1,0 +1,11 @@
+# One real laptop product URL per line. Blank lines and comments are ignored.
+# Checked against retailer pages on 2026-10-14; page existence does not guarantee
+# accessible prices. Open these before class and replace discontinued products.
+# Amazon: Macbook air 
+https://www.amazon.com/Apple-2026-MacBook-13-inch-Laptop/dp/B0GR1JTFP8/ref=sr_1_3?crid=PO8S7IO0N5TD&dib=eyJ2IjoiMSJ9.YeU3G8niAgIoUALlYUhrCfnfOHbjP_VySNkkQQIRBfKitpEHDzp7l_HBuouzclYIvPbeWhaS4dKFIbMB5QJofHvhLsQSCWkaLOuUlTbKKiE42IBY91qspqeVff0vSPjWs8WVLYHNFIuqVvzwBcWrc-3B4yE2g0CJKRIaREZW135Iv2Tw9_TK-eNHbuDAoDZbfRobu6HMecHUWU0Vi99WWMlSv1BxMbgEsRpd0QG-blQ.IDCEdSszia2flx6-Z2zals-hKRep-d5aN7Ex7CEg6H4&dib_tag=se&keywords=macbook+air&qid=1792008544&sprefix=macbook+air+%2Caps%2C255&sr=8-3 
+# Best Buy: MacBook Air 
+https://www.bestbuy.com/product/apple-macbook-air-13-inch-laptop-m5-chip-with-10-core-cpu-and-8-core-gpu-16gb-memory-512gb-ssd-midnight/JJGCQLKXL7
+# Target: macbook neo
+https://www.target.com/p/apple-macbook-neo-a18-pro-2026-laptop/-/A-95288385?preselect=91122087# 
+# Walmart: macbook air.
+https://www.walmart.com/ip/Apple-13-inch-MacBook-Air-Apple-M5-chip-w-10-core-CPU-8-core-GPU-512GB-SSD-16GB-RAM-Sky-Blue-MDHH4LL-A-2026/19715756171?classType=VARIANT&athbdg=L1103&from=/search
