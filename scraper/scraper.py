@@ -250,6 +250,64 @@ def target_embedded_title(soup, product_id):
     return next(iter(titles), None)
 
 
+def amazon_page_fields(soup):
+    """Read Amazon's product title and primary offer from product-specific areas."""
+    title = text(soup, "#productTitle, #title_feature_div #title")
+    if not title:
+        # Open Graph title is page-scoped metadata, unlike recommendation cards.
+        tag = soup.select_one('meta[property="og:title"]')
+        value = tag.get("content", "").strip() if tag else ""
+        if value and value.lower() not in {"amazon.com", "amazon"}:
+            title = value
+
+    price = currency = availability = None
+    containers = soup.select(
+        "#corePriceDisplay_desktop_feature_div, #corePrice_feature_div, "
+        "#apex_desktop, #buybox"
+    )
+    # Amazon also publishes the selected currency in its navigation's
+    # currencyInfo, even when the primary offer markup omits priceCurrency.
+    # Use that explicit page setting only alongside a price from the product area.
+    page_currency = None
+    for script in soup.find_all("script"):
+        script_text = script.string or script.get_text()
+        match = re.search(
+            r'"currencyInfo"\s*:\s*\{\s*"code"\s*:\s*"([A-Z]{3})"',
+            script_text,
+        )
+        if match:
+            page_currency = match.group(1)
+            break
+    for container in containers:
+        currency_tag = container.select_one('[itemprop="priceCurrency"], [data-a-currency-code]')
+        if currency_tag:
+            currency = currency_tag.get("content") or currency_tag.get("data-a-currency-code")
+        if price is None:
+            price_tag = container.select_one(
+                '.a-price:not(.a-text-price) .a-offscreen, '
+                '#priceblock_ourprice, #priceblock_dealprice, #priceblock_saleprice'
+            )
+            if price_tag:
+                displayed = price_tag.get("content") or price_tag.get_text(" ", strip=True)
+                match = re.fullmatch(
+                    r"\s*(US\$|\$)?\s*((?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d{2})?)\s*",
+                    displayed,
+                )
+                if match:
+                    symbol, amount = match.groups()
+                    price = amount.replace(",", "")
+                    # A bare dollar sign does not establish currency.
+                    if symbol == "US$":
+                        currency = currency or "USD"
+        if availability is None:
+            availability_tag = container.select_one('[itemprop="availability"]')
+            if availability_tag:
+                availability = availability_tag.get("href") or availability_tag.get_text(" ", strip=True)
+    if price is not None and currency is None:
+        currency = page_currency
+    return title, price, currency, availability
+
+
 def extract_product(html, url):
     check_page(html)
     url = clean_url(url)
@@ -320,14 +378,10 @@ def extract_product(html, url):
             if displayed.startswith("US$"):
                 record["currency"] = "USD"
     if retailer == "amazon":
-        container = soup.select_one("#corePriceDisplay_desktop_feature_div, #corePrice_feature_div")
-        if container and record["price"] is None:
-            displayed = text(container, ".a-price:not(.a-text-price) .a-offscreen")
-            if displayed:
-                # US$ explicitly identifies currency; a bare $ does not.
-                if displayed.startswith("US$"):
-                    record["currency"] = "USD"
-                amount = re.sub(r"^(US\$|\$)", "", displayed).replace(",", "")
-                record["price"] = amount
+        title, price, currency, availability = amazon_page_fields(soup)
+        record["title"] = record["title"] or title
+        record["price"] = record["price"] or price
+        record["currency"] = record["currency"] or currency
+        record["availability"] = record["availability"] or availability
     return record
 
