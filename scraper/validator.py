@@ -26,6 +26,11 @@ class Laptop(BaseModel):
     availability: str | None = None
     seller: str | None = Field(default=None, max_length=300)
     discount: None = None  # Not extracted in this lesson. Unknown is not zero.
+    brand: str | None = None
+    model: str | None = None
+    category: str | None = None
+    gtin: str | None = None
+    attributes: dict = Field(default_factory=dict)
     observed_at: datetime
     extraction_method: Literal["json-ld", "html", "manual"]
 

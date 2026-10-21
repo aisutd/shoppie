@@ -5,3 +5,4 @@ beautifulsoup4>=4.12,<5
 
 # Use the verified exact versions while retaining the original dependency intent.
 -r scraper/requirements.txt
+mysql-connector-python>=9,<10

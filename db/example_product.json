@@ -1,0 +1,873 @@
+{
+    "schema_version":  1,
+    "listings":  [
+                     {
+                         "retailer_key":  "amazon",
+                         "retailer_sku":  "DEMO-AMAZON-0001",
+                         "source_url":  "https://amazon.example/products/demo-1",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Sony WH-1000XM5 Wireless Headphones - black",
+                                     "price":  "$349.99",
+                                     "currency":  "USD",
+                                     "brand":  "Sony",
+                                     "model":  "WH-1000XM5",
+                                     "gtin":  null,
+                                     "category":  "headphones",
+                                     "attributes":  {
+                                                        "color":  "black",
+                                                        "condition":  "new",
+                                                        "connectivity":  "wireless"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "walmart",
+                         "retailer_sku":  "DEMO-WALMART-0001",
+                         "source_url":  "https://walmart.example/products/demo-1",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Sony WH-1000XM5 - Sony WH-1000XM5 Wireless Headphones",
+                                     "price":  "$339.99",
+                                     "currency":  "USD",
+                                     "brand":  "Sony",
+                                     "model":  "WH-1000XM5",
+                                     "gtin":  null,
+                                     "category":  "headphones",
+                                     "attributes":  {
+                                                        "color":  "black",
+                                                        "condition":  "new",
+                                                        "connectivity":  "wireless"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "target",
+                         "retailer_sku":  "DEMO-TARGET-0001",
+                         "source_url":  "https://target.example/products/demo-1",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Sony WH-1000XM5 Wireless Headphones / new",
+                                     "price":  "$344.99",
+                                     "currency":  "USD",
+                                     "brand":  "Sony",
+                                     "model":  "WH-1000XM5",
+                                     "gtin":  null,
+                                     "category":  "headphones",
+                                     "attributes":  {
+                                                        "color":  "black",
+                                                        "condition":  "new",
+                                                        "connectivity":  "wireless"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "best_buy",
+                         "retailer_sku":  "DEMO-BEST_BUY-0001",
+                         "source_url":  "https://best-buy.example/products/demo-1",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Sony WH-1000XM5 Wireless Headphones - new",
+                                     "price":  "$354.99",
+                                     "currency":  "USD",
+                                     "brand":  "Sony",
+                                     "model":  "WH-1000XM5",
+                                     "gtin":  null,
+                                     "category":  "headphones",
+                                     "attributes":  {
+                                                        "color":  "black",
+                                                        "condition":  "new",
+                                                        "connectivity":  "wireless"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "amazon",
+                         "retailer_sku":  "DEMO-AMAZON-0002",
+                         "source_url":  "https://amazon.example/products/demo-2",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Apple iPhone 15 128GB Unlocked - black",
+                                     "price":  "$599.00",
+                                     "currency":  "USD",
+                                     "brand":  "Apple",
+                                     "model":  "iPhone 15",
+                                     "gtin":  null,
+                                     "category":  "smartphones",
+                                     "attributes":  {
+                                                        "network":  "unlocked",
+                                                        "color":  "black",
+                                                        "condition":  "new",
+                                                        "storage_gb":  "128"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "walmart",
+                         "retailer_sku":  "DEMO-WALMART-0002",
+                         "source_url":  "https://walmart.example/products/demo-2",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Apple iPhone 15 - Apple iPhone 15 128GB Unlocked",
+                                     "price":  "$589.00",
+                                     "currency":  "USD",
+                                     "brand":  "Apple",
+                                     "model":  "iPhone 15",
+                                     "gtin":  null,
+                                     "category":  "smartphones",
+                                     "attributes":  {
+                                                        "network":  "unlocked",
+                                                        "color":  "black",
+                                                        "condition":  "new",
+                                                        "storage_gb":  "128"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "target",
+                         "retailer_sku":  "DEMO-TARGET-0002",
+                         "source_url":  "https://target.example/products/demo-2",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Apple iPhone 15 128GB Unlocked / new",
+                                     "price":  "$594.00",
+                                     "currency":  "USD",
+                                     "brand":  "Apple",
+                                     "model":  "iPhone 15",
+                                     "gtin":  null,
+                                     "category":  "smartphones",
+                                     "attributes":  {
+                                                        "network":  "unlocked",
+                                                        "color":  "black",
+                                                        "condition":  "new",
+                                                        "storage_gb":  "128"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "best_buy",
+                         "retailer_sku":  "DEMO-BEST_BUY-0002",
+                         "source_url":  "https://best-buy.example/products/demo-2",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Apple iPhone 15 128GB Unlocked - new",
+                                     "price":  "$604.00",
+                                     "currency":  "USD",
+                                     "brand":  "Apple",
+                                     "model":  "iPhone 15",
+                                     "gtin":  null,
+                                     "category":  "smartphones",
+                                     "attributes":  {
+                                                        "network":  "unlocked",
+                                                        "color":  "black",
+                                                        "condition":  "new",
+                                                        "storage_gb":  "128"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "amazon",
+                         "retailer_sku":  "DEMO-AMAZON-0003",
+                         "source_url":  "https://amazon.example/products/demo-3",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Samsung Galaxy Tab A9+ 64GB Wi-Fi - graphite",
+                                     "price":  "$219.99",
+                                     "currency":  "USD",
+                                     "brand":  "Samsung",
+                                     "model":  "Galaxy Tab A9+",
+                                     "gtin":  null,
+                                     "category":  "tablets",
+                                     "attributes":  {
+                                                        "color":  "graphite",
+                                                        "ram_gb":  "4",
+                                                        "condition":  "new",
+                                                        "storage_gb":  "64"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "walmart",
+                         "retailer_sku":  "DEMO-WALMART-0003",
+                         "source_url":  "https://walmart.example/products/demo-3",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Samsung Galaxy Tab A9+ - Samsung Galaxy Tab A9+ 64GB Wi-Fi",
+                                     "price":  "$209.99",
+                                     "currency":  "USD",
+                                     "brand":  "Samsung",
+                                     "model":  "Galaxy Tab A9+",
+                                     "gtin":  null,
+                                     "category":  "tablets",
+                                     "attributes":  {
+                                                        "color":  "graphite",
+                                                        "ram_gb":  "4",
+                                                        "condition":  "new",
+                                                        "storage_gb":  "64"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "target",
+                         "retailer_sku":  "DEMO-TARGET-0003",
+                         "source_url":  "https://target.example/products/demo-3",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Samsung Galaxy Tab A9+ 64GB Wi-Fi / new",
+                                     "price":  "$214.99",
+                                     "currency":  "USD",
+                                     "brand":  "Samsung",
+                                     "model":  "Galaxy Tab A9+",
+                                     "gtin":  null,
+                                     "category":  "tablets",
+                                     "attributes":  {
+                                                        "color":  "graphite",
+                                                        "ram_gb":  "4",
+                                                        "condition":  "new",
+                                                        "storage_gb":  "64"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "best_buy",
+                         "retailer_sku":  "DEMO-BEST_BUY-0003",
+                         "source_url":  "https://best-buy.example/products/demo-3",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Samsung Galaxy Tab A9+ 64GB Wi-Fi - new",
+                                     "price":  "$224.99",
+                                     "currency":  "USD",
+                                     "brand":  "Samsung",
+                                     "model":  "Galaxy Tab A9+",
+                                     "gtin":  null,
+                                     "category":  "tablets",
+                                     "attributes":  {
+                                                        "color":  "graphite",
+                                                        "ram_gb":  "4",
+                                                        "condition":  "new",
+                                                        "storage_gb":  "64"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "amazon",
+                         "retailer_sku":  "DEMO-AMAZON-0004",
+                         "source_url":  "https://amazon.example/products/demo-4",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Lenovo IdeaPad Slim 3 Laptop - ",
+                                     "price":  "$549.99",
+                                     "currency":  "USD",
+                                     "brand":  "Lenovo",
+                                     "model":  "IdeaPad Slim 3",
+                                     "gtin":  null,
+                                     "category":  "laptops",
+                                     "attributes":  {
+                                                        "ram_gb":  "16",
+                                                        "screen_inches":  "15.6",
+                                                        "condition":  "new",
+                                                        "storage_gb":  "512",
+                                                        "storage_type":  "SSD"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "walmart",
+                         "retailer_sku":  "DEMO-WALMART-0004",
+                         "source_url":  "https://walmart.example/products/demo-4",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Lenovo IdeaPad Slim 3 - Lenovo IdeaPad Slim 3 Laptop",
+                                     "price":  "$539.99",
+                                     "currency":  "USD",
+                                     "brand":  "Lenovo",
+                                     "model":  "IdeaPad Slim 3",
+                                     "gtin":  null,
+                                     "category":  "laptops",
+                                     "attributes":  {
+                                                        "ram_gb":  "16",
+                                                        "screen_inches":  "15.6",
+                                                        "condition":  "new",
+                                                        "storage_gb":  "512",
+                                                        "storage_type":  "SSD"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "target",
+                         "retailer_sku":  "DEMO-TARGET-0004",
+                         "source_url":  "https://target.example/products/demo-4",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Lenovo IdeaPad Slim 3 Laptop / new",
+                                     "price":  "$544.99",
+                                     "currency":  "USD",
+                                     "brand":  "Lenovo",
+                                     "model":  "IdeaPad Slim 3",
+                                     "gtin":  null,
+                                     "category":  "laptops",
+                                     "attributes":  {
+                                                        "ram_gb":  "16",
+                                                        "screen_inches":  "15.6",
+                                                        "condition":  "new",
+                                                        "storage_gb":  "512",
+                                                        "storage_type":  "SSD"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "best_buy",
+                         "retailer_sku":  "DEMO-BEST_BUY-0004",
+                         "source_url":  "https://best-buy.example/products/demo-4",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Lenovo IdeaPad Slim 3 Laptop - new",
+                                     "price":  "$554.99",
+                                     "currency":  "USD",
+                                     "brand":  "Lenovo",
+                                     "model":  "IdeaPad Slim 3",
+                                     "gtin":  null,
+                                     "category":  "laptops",
+                                     "attributes":  {
+                                                        "ram_gb":  "16",
+                                                        "screen_inches":  "15.6",
+                                                        "condition":  "new",
+                                                        "storage_gb":  "512",
+                                                        "storage_type":  "SSD"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "amazon",
+                         "retailer_sku":  "DEMO-AMAZON-0005",
+                         "source_url":  "https://amazon.example/products/demo-5",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Logitech MX Master 3S Wireless Mouse - graphite",
+                                     "price":  "$99.99",
+                                     "currency":  "USD",
+                                     "brand":  "Logitech",
+                                     "model":  "MX Master 3S",
+                                     "gtin":  null,
+                                     "category":  "computer_mice",
+                                     "attributes":  {
+                                                        "color":  "graphite",
+                                                        "condition":  "new",
+                                                        "connectivity":  "wireless"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "walmart",
+                         "retailer_sku":  "DEMO-WALMART-0005",
+                         "source_url":  "https://walmart.example/products/demo-5",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Logitech MX Master 3S - Logitech MX Master 3S Wireless Mouse",
+                                     "price":  "$89.99",
+                                     "currency":  "USD",
+                                     "brand":  "Logitech",
+                                     "model":  "MX Master 3S",
+                                     "gtin":  null,
+                                     "category":  "computer_mice",
+                                     "attributes":  {
+                                                        "color":  "graphite",
+                                                        "condition":  "new",
+                                                        "connectivity":  "wireless"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "target",
+                         "retailer_sku":  "DEMO-TARGET-0005",
+                         "source_url":  "https://target.example/products/demo-5",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Logitech MX Master 3S Wireless Mouse / new",
+                                     "price":  "$94.99",
+                                     "currency":  "USD",
+                                     "brand":  "Logitech",
+                                     "model":  "MX Master 3S",
+                                     "gtin":  null,
+                                     "category":  "computer_mice",
+                                     "attributes":  {
+                                                        "color":  "graphite",
+                                                        "condition":  "new",
+                                                        "connectivity":  "wireless"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "best_buy",
+                         "retailer_sku":  "DEMO-BEST_BUY-0005",
+                         "source_url":  "https://best-buy.example/products/demo-5",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Logitech MX Master 3S Wireless Mouse - new",
+                                     "price":  "$104.99",
+                                     "currency":  "USD",
+                                     "brand":  "Logitech",
+                                     "model":  "MX Master 3S",
+                                     "gtin":  null,
+                                     "category":  "computer_mice",
+                                     "attributes":  {
+                                                        "color":  "graphite",
+                                                        "condition":  "new",
+                                                        "connectivity":  "wireless"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "amazon",
+                         "retailer_sku":  "DEMO-AMAZON-0006",
+                         "source_url":  "https://amazon.example/products/demo-6",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Samsung T7 Portable SSD 1TB - gray",
+                                     "price":  "$89.99",
+                                     "currency":  "USD",
+                                     "brand":  "Samsung",
+                                     "model":  "T7",
+                                     "gtin":  null,
+                                     "category":  "external_storage",
+                                     "attributes":  {
+                                                        "color":  "gray",
+                                                        "condition":  "new",
+                                                        "storage_gb":  "1000",
+                                                        "storage_type":  "SSD"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "walmart",
+                         "retailer_sku":  "DEMO-WALMART-0006",
+                         "source_url":  "https://walmart.example/products/demo-6",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Samsung T7 - Samsung T7 Portable SSD 1TB",
+                                     "price":  "$79.99",
+                                     "currency":  "USD",
+                                     "brand":  "Samsung",
+                                     "model":  "T7",
+                                     "gtin":  null,
+                                     "category":  "external_storage",
+                                     "attributes":  {
+                                                        "color":  "gray",
+                                                        "condition":  "new",
+                                                        "storage_gb":  "1000",
+                                                        "storage_type":  "SSD"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "target",
+                         "retailer_sku":  "DEMO-TARGET-0006",
+                         "source_url":  "https://target.example/products/demo-6",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Samsung T7 Portable SSD 1TB / new",
+                                     "price":  "$84.99",
+                                     "currency":  "USD",
+                                     "brand":  "Samsung",
+                                     "model":  "T7",
+                                     "gtin":  null,
+                                     "category":  "external_storage",
+                                     "attributes":  {
+                                                        "color":  "gray",
+                                                        "condition":  "new",
+                                                        "storage_gb":  "1000",
+                                                        "storage_type":  "SSD"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "best_buy",
+                         "retailer_sku":  "DEMO-BEST_BUY-0006",
+                         "source_url":  "https://best-buy.example/products/demo-6",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Samsung T7 Portable SSD 1TB - new",
+                                     "price":  "$94.99",
+                                     "currency":  "USD",
+                                     "brand":  "Samsung",
+                                     "model":  "T7",
+                                     "gtin":  null,
+                                     "category":  "external_storage",
+                                     "attributes":  {
+                                                        "color":  "gray",
+                                                        "condition":  "new",
+                                                        "storage_gb":  "1000",
+                                                        "storage_type":  "SSD"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "amazon",
+                         "retailer_sku":  "DEMO-AMAZON-0007",
+                         "source_url":  "https://amazon.example/products/demo-7",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "JBL Flip 6 Bluetooth Speaker - black",
+                                     "price":  "$129.99",
+                                     "currency":  "USD",
+                                     "brand":  "JBL",
+                                     "model":  "Flip 6",
+                                     "gtin":  null,
+                                     "category":  "speakers",
+                                     "attributes":  {
+                                                        "color":  "black",
+                                                        "condition":  "new",
+                                                        "connectivity":  "Bluetooth"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "walmart",
+                         "retailer_sku":  "DEMO-WALMART-0007",
+                         "source_url":  "https://walmart.example/products/demo-7",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "JBL Flip 6 - JBL Flip 6 Bluetooth Speaker",
+                                     "price":  "$119.99",
+                                     "currency":  "USD",
+                                     "brand":  "JBL",
+                                     "model":  "Flip 6",
+                                     "gtin":  null,
+                                     "category":  "speakers",
+                                     "attributes":  {
+                                                        "color":  "black",
+                                                        "condition":  "new",
+                                                        "connectivity":  "Bluetooth"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "target",
+                         "retailer_sku":  "DEMO-TARGET-0007",
+                         "source_url":  "https://target.example/products/demo-7",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "JBL Flip 6 Bluetooth Speaker / new",
+                                     "price":  "$124.99",
+                                     "currency":  "USD",
+                                     "brand":  "JBL",
+                                     "model":  "Flip 6",
+                                     "gtin":  null,
+                                     "category":  "speakers",
+                                     "attributes":  {
+                                                        "color":  "black",
+                                                        "condition":  "new",
+                                                        "connectivity":  "Bluetooth"
+                                                    },
+                                     "availability":  "out_of_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "best_buy",
+                         "retailer_sku":  "DEMO-BEST_BUY-0007",
+                         "source_url":  "https://best-buy.example/products/demo-7",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "JBL Flip 6 Bluetooth Speaker - new",
+                                     "price":  "$134.99",
+                                     "currency":  "USD",
+                                     "brand":  "JBL",
+                                     "model":  "Flip 6",
+                                     "gtin":  null,
+                                     "category":  "speakers",
+                                     "attributes":  {
+                                                        "color":  "black",
+                                                        "condition":  "new",
+                                                        "connectivity":  "Bluetooth"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "amazon",
+                         "retailer_sku":  "DEMO-AMAZON-0008",
+                         "source_url":  "https://amazon.example/products/demo-8",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Anker Nano 3 30W USB-C Charger - white",
+                                     "price":  "$19.99",
+                                     "currency":  "USD",
+                                     "brand":  "Anker",
+                                     "model":  "Nano 3",
+                                     "gtin":  null,
+                                     "category":  "chargers",
+                                     "attributes":  {
+                                                        "color":  "white",
+                                                        "connector":  "USB-C",
+                                                        "condition":  "new",
+                                                        "power_watts":  "30"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "walmart",
+                         "retailer_sku":  "DEMO-WALMART-0008",
+                         "source_url":  "https://walmart.example/products/demo-8",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Anker Nano 3 - Anker Nano 3 30W USB-C Charger",
+                                     "price":  null,
+                                     "currency":  null,
+                                     "brand":  "Anker",
+                                     "model":  "Nano 3",
+                                     "gtin":  null,
+                                     "category":  "chargers",
+                                     "attributes":  {
+                                                        "color":  "white",
+                                                        "connector":  "USB-C",
+                                                        "condition":  "new",
+                                                        "power_watts":  "30"
+                                                    },
+                                     "availability":  null
+                                 }
+                     },
+                     {
+                         "retailer_key":  "target",
+                         "retailer_sku":  "DEMO-TARGET-0008",
+                         "source_url":  "https://target.example/products/demo-8",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Anker Nano 3 30W USB-C Charger / new",
+                                     "price":  "$14.99",
+                                     "currency":  "USD",
+                                     "brand":  "Anker",
+                                     "model":  "Nano 3",
+                                     "gtin":  null,
+                                     "category":  "chargers",
+                                     "attributes":  {
+                                                        "color":  "white",
+                                                        "connector":  "USB-C",
+                                                        "condition":  "new",
+                                                        "power_watts":  "30"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "best_buy",
+                         "retailer_sku":  "DEMO-BEST_BUY-0008",
+                         "source_url":  "https://best-buy.example/products/demo-8",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Anker Nano 3 30W USB-C Charger - new",
+                                     "price":  "$24.99",
+                                     "currency":  "USD",
+                                     "brand":  "Anker",
+                                     "model":  "Nano 3",
+                                     "gtin":  null,
+                                     "category":  "chargers",
+                                     "attributes":  {
+                                                        "color":  "white",
+                                                        "connector":  "USB-C",
+                                                        "condition":  "new",
+                                                        "power_watts":  "30"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "amazon",
+                         "retailer_sku":  "DEMO-AMAZON-0009",
+                         "source_url":  "https://amazon.example/products/demo-9",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Apple iPhone 15 256GB Unlocked - black",
+                                     "price":  "$699.00",
+                                     "currency":  "USD",
+                                     "brand":  "Apple",
+                                     "model":  "iPhone 15",
+                                     "gtin":  null,
+                                     "category":  "smartphones",
+                                     "attributes":  {
+                                                        "network":  "unlocked",
+                                                        "color":  "black",
+                                                        "condition":  "new",
+                                                        "storage_gb":  "256"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "walmart",
+                         "retailer_sku":  "DEMO-WALMART-0009",
+                         "source_url":  "https://walmart.example/products/demo-9",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Apple iPhone 15 - Apple iPhone 15 256GB Unlocked",
+                                     "price":  "$689.00",
+                                     "currency":  "USD",
+                                     "brand":  "Apple",
+                                     "model":  "iPhone 15",
+                                     "gtin":  null,
+                                     "category":  "smartphones",
+                                     "attributes":  {
+                                                        "network":  "unlocked",
+                                                        "color":  "black",
+                                                        "condition":  "new",
+                                                        "storage_gb":  "256"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "target",
+                         "retailer_sku":  "DEMO-TARGET-0009",
+                         "source_url":  "https://target.example/products/demo-9",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Apple iPhone 15 256GB Unlocked / new",
+                                     "price":  "$694.00",
+                                     "currency":  "USD",
+                                     "brand":  "Apple",
+                                     "model":  "iPhone 15",
+                                     "gtin":  null,
+                                     "category":  "smartphones",
+                                     "attributes":  {
+                                                        "network":  "unlocked",
+                                                        "color":  "black",
+                                                        "condition":  "new",
+                                                        "storage_gb":  "256"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "best_buy",
+                         "retailer_sku":  "DEMO-BEST_BUY-0009",
+                         "source_url":  "https://best-buy.example/products/demo-9",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Apple iPhone 15 256GB Unlocked - new",
+                                     "price":  "$704.00",
+                                     "currency":  "USD",
+                                     "brand":  "Apple",
+                                     "model":  "iPhone 15",
+                                     "gtin":  null,
+                                     "category":  "smartphones",
+                                     "attributes":  {
+                                                        "network":  "unlocked",
+                                                        "color":  "black",
+                                                        "condition":  "new",
+                                                        "storage_gb":  "256"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "amazon",
+                         "retailer_sku":  "DEMO-AMAZON-0010",
+                         "source_url":  "https://amazon.example/products/demo-10",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Sony WH-1000XM5 Wireless Headphones Refurbished - black",
+                                     "price":  "$229.99",
+                                     "currency":  "USD",
+                                     "brand":  "Sony",
+                                     "model":  "WH-1000XM5",
+                                     "gtin":  null,
+                                     "category":  "headphones",
+                                     "attributes":  {
+                                                        "color":  "black",
+                                                        "condition":  "refurbished",
+                                                        "connectivity":  "wireless"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "walmart",
+                         "retailer_sku":  "DEMO-WALMART-0010",
+                         "source_url":  "https://walmart.example/products/demo-10",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Sony WH-1000XM5 - Sony WH-1000XM5 Wireless Headphones Refurbished",
+                                     "price":  "$219.99",
+                                     "currency":  "USD",
+                                     "brand":  "Sony",
+                                     "model":  "WH-1000XM5",
+                                     "gtin":  null,
+                                     "category":  "headphones",
+                                     "attributes":  {
+                                                        "color":  "black",
+                                                        "condition":  "refurbished",
+                                                        "connectivity":  "wireless"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "target",
+                         "retailer_sku":  "DEMO-TARGET-0010",
+                         "source_url":  "https://target.example/products/demo-10",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Sony WH-1000XM5 Wireless Headphones Refurbished / refurbished",
+                                     "price":  "$224.99",
+                                     "currency":  "USD",
+                                     "brand":  "Sony",
+                                     "model":  "WH-1000XM5",
+                                     "gtin":  null,
+                                     "category":  "headphones",
+                                     "attributes":  {
+                                                        "color":  "black",
+                                                        "condition":  "refurbished",
+                                                        "connectivity":  "wireless"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     },
+                     {
+                         "retailer_key":  "best_buy",
+                         "retailer_sku":  "DEMO-BEST_BUY-0010",
+                         "source_url":  "https://best-buy.example/products/demo-10",
+                         "scraped_at":  "2026-10-11T15:00:00Z",
+                         "raw":  {
+                                     "title":  "Sony WH-1000XM5 Wireless Headphones Refurbished - refurbished",
+                                     "price":  "$234.99",
+                                     "currency":  "USD",
+                                     "brand":  "Sony",
+                                     "model":  "WH-1000XM5",
+                                     "gtin":  null,
+                                     "category":  "headphones",
+                                     "attributes":  {
+                                                        "color":  "black",
+                                                        "condition":  "refurbished",
+                                                        "connectivity":  "wireless"
+                                                    },
+                                     "availability":  "in_stock"
+                                 }
+                     }
+                 ]
+}

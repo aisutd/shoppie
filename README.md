@@ -23,6 +23,13 @@ docker compose ps
 
 This is a generic starter configuration. The team can add project-specific dependencies and startup commands later.
 
+## Local listing pipeline
+
+The local MySQL listing/history pipeline and its offline verification steps are
+documented in [db/README.md](db/README.md). The existing Supabase classroom
+uploader remains a separate example. No live database is needed to export
+validated scraper JSON or run the automated tests.
+
 ## Beginner Python lesson: real laptop data
 
 ### Classroom option when automated retrieval fails
@@ -61,7 +68,7 @@ The original uploader schema is preserved in `sql/legacy_scraper_schema.sql`.
 The scraper covers laptop pages from Amazon, Best Buy, Target, and
 Walmart. It runs without Supabase configuration by default; database writes
 require `--save`. The earlier [LESSON.md](LESSON.md), `lesson/`, `tests/`, and
-`db/schema.sql` are preserved as the original observation-based version.
+`db/legacy_lesson_schema.sql` preserve the earlier observation-based lesson.
 
 Repository inspection on October 14, 2026: this branch contained only this README
 and `requirements.txt` (Pydantic and pytest), after commit `032ba66`. The previous
@@ -292,7 +299,7 @@ may be stale, and **cannot** be used with `--save`. Test fixtures are never a fa
 
 ### Instructor Supabase configuration and read-only connection check
 
-If `--check-db` reports `MISSING TABLE`, the selected `db/schema.sql` is the
+If `--check-db` reports `MISSING TABLE`, `db/legacy_lesson_schema.sql` is the
 **older** lesson schema: it does not create `products`. Run
 `sql/inspect_products.sql` in the same Supabase project's SQL Editor. If its first
 result is NULL, run `sql/schema.sql`, then rerun the check below. Keep any earlier
@@ -435,7 +442,7 @@ retrying. Earlier lesson files and schemas remain preserved for reference.
 git status --short
 ```
 
-173 tests pass. Exact dependency versions remain recorded in
+The current offline test count is reported by `python3 -m pytest -q`. Exact dependency versions remain recorded in
 `scraper/requirements.txt`. Tests cover configuration, parsing, validation, import
 safety, explicit saving, limits, duplicate/variant handling, confirmed mocked
 upserts and read-only database checks.

@@ -221,6 +221,51 @@ def meta(soup, field):
     return tag.get("content") if tag else None
 
 
+def named_value(value):
+    """Read a visible JSON-LD name or plain string without guessing."""
+    if isinstance(value, str):
+        return value.strip() or None
+    if isinstance(value, dict) and isinstance(value.get("name"), str):
+        return value["name"].strip() or None
+    return None
+
+
+def product_details(product):
+    """Keep only details explicitly attached to the selected Product node."""
+    details = {
+        "brand": named_value(product.get("brand")),
+        "model": named_value(product.get("model")),
+        "category": named_value(product.get("category")),
+        "gtin": None, "attributes": {},
+    }
+    for key in ("gtin14", "gtin13", "gtin12", "gtin8", "gtin"):
+        if isinstance(product.get(key), str) and product[key].strip():
+            details["gtin"] = product[key].strip()
+            break
+    properties = product.get("additionalProperty") or []
+    if isinstance(properties, dict):
+        properties = [properties]
+    if isinstance(properties, list):
+        names = {"color": "color", "ram": "ram_gb", "memory": "ram_gb",
+                 "storage": "storage_gb", "screen size": "screen_inches"}
+        for item in properties:
+            if not isinstance(item, dict):
+                continue
+            field = names.get(str(item.get("name", "")).strip().lower())
+            value = item.get("value")
+            if field == "color" and isinstance(value, str):
+                details["attributes"][field] = value.strip() or None
+            elif field and isinstance(value, str):
+                unit = "GB" if field in {"ram_gb", "storage_gb"} else "in"
+                match = re.fullmatch(rf"\s*(\d+(?:\.\d+)?)\s*{unit}\s*", value, re.I)
+                if match:
+                    number = float(match.group(1))
+                    details["attributes"][field] = int(number) if number.is_integer() else number
+    if isinstance(product.get("color"), str):
+        details["attributes"]["color"] = product["color"].strip() or None
+    return details
+
+
 def target_embedded_title(soup, product_id):
     """Read only Target layout title modules explicitly bound to this TCIN.
 
@@ -270,11 +315,19 @@ def extract_product(html, url):
         "seller": None, "discount": None,
         "observed_at": datetime.now(timezone.utc).isoformat(),
         "extraction_method": "html",
+        "brand": None, "model": None, "category": None, "gtin": None,
+        "attributes": {},
     }
     product = main_product(soup, url)
     if product:
         record["extraction_method"] = "json-ld"
         record["title"] = product.get("name")
+        if not isinstance(record["title"], str) or not record["title"].strip():
+            headings = {"amazon": "#productTitle", "bestbuy": "h1",
+                        "target": 'h1[data-test="product-title"], h1',
+                        "walmart": 'h1[itemprop="name"], h1'}
+            record["title"] = text(soup, headings[retailer])
+        record.update(product_details(product))
         offers = product.get("offers")
         if isinstance(offers, list) and len(offers) == 1:
             offers = offers[0]
@@ -299,6 +352,10 @@ def extract_product(html, url):
         "walmart": 'h1[itemprop="name"], h1',
     }
     record["title"] = text(soup, titles[retailer])
+    record["brand"] = meta(soup, "brand")
+    record["model"] = meta(soup, "model")
+    record["category"] = meta(soup, "category")
+    record["gtin"] = meta(soup, "gtin")
     if retailer == "target":
         # Rendering sometimes removes the main heading while this TCIN-bound
         # title remains in public page data. Price/currency must still be explicit.

@@ -19,7 +19,7 @@ On October 14, 2026, `shiv-test-branch` was clean and contained only:
 - `requirements.txt`: Pydantic 2 and pytest 8.
 
 Commit `032ba66` had already removed the earlier implementation. The IDE's
-`db/schema.sql` tab was stale. This lesson adds a new, separate SQL schema;
+`db/legacy_lesson_schema.sql` tab was stale. This lesson adds a new, separate SQL schema;
 it does not restore or overwrite the earlier implementation. Existing README
 content and requirement entries are preserved. No commits are made for this lesson.
 
@@ -161,7 +161,7 @@ Local HTML is explicitly marked as practice, may be stale, and cannot be used wi
 
 1. Create or choose **one** Supabase project for the class. Students all use that
    project's URL and publishable key; they do not each create a database.
-2. Run `db/schema.sql` once in its SQL Editor. It adds only `lesson_members` and
+2. Run `db/legacy_lesson_schema.sql` once in its SQL Editor. It adds only `lesson_members` and
    `lesson_laptop_observations`. It intentionally fails rather than replacing an
    existing lesson table; do not repeatedly run it or drop existing project tables.
 3. In Authentication, create/invite each student's email/password user and ensure
@@ -211,7 +211,7 @@ upsert or a scheduler. The database rejects an identical observation identity.
 A network timeout after posting can leave save status unknown: check the table
 before retrying. There are no automatic database retries.
 
-Use Supabase's Table Editor or the SELECT query at the bottom of `db/schema.sql`
+Use Supabase's Table Editor or the SELECT query at the bottom of `db/legacy_lesson_schema.sql`
 to see the shared rows. Before class, verify with one member and one nonmember:
 the member can insert/read, the nonmember cannot, and neither can update/delete.
 These remote policy checks require your actual project and accounts.
@@ -234,7 +234,7 @@ Remove-Item Env:SUPABASE_URL, Env:SUPABASE_PUBLISHABLE_KEY -ErrorAction Silently
 | `lesson/pages.py` | Checkpoint 1: validate a URL and fetch plain/rendered HTML. |
 | `lesson/extract.py` | Checkpoint 2: extract explicit Product/Offer fields into a dictionary. |
 | `lesson/validate.py` | Checkpoint 3: define accepted laptop records and validate data. |
-| `db/schema.sql` | Mentor's shared PostgreSQL tables, constraints, grants and RLS. |
+| `db/legacy_lesson_schema.sql` | Mentor's shared PostgreSQL tables, constraints, grants and RLS. |
 | `lesson/database.py` | Checkpoint 4: hidden sign-in and insertion of a validated record. |
 | `lesson/__main__.py` | Connects the stages, prints results, and enforces `--save`. |
 | `tests/test_lesson.py` | Offline checks for unsafe data, page identity and the save boundary. |

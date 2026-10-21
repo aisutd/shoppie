@@ -3,7 +3,7 @@
 Today we follow one real Target laptop page through **fetch → extract →
 validate → optionally save**. You already know SQLite; Python validation and
 PostgreSQL constraints enforce similar rules. We use the existing `scraper/`
-code. `lesson/`, `LESSON.md` and `db/schema.sql` are older reference material.
+code. `lesson/`, `LESSON.md` and `db/legacy_lesson_schema.sql` are older reference material.
 
 ## Get ready
 
