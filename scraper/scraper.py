@@ -84,8 +84,11 @@ def check_page(html):
         tag.decompose()
     lower = soup.get_text(" ", strip=True).lower()
     markers = ["robot check", "validatecaptcha", "verify you are human",
-               "verify you're human", "press & hold", "access denied"]
-    if any(marker in lower for marker in markers) or soup.select_one('input[name="captchacharacters"]'):
+               "verify you're human", "press & hold", "access denied",
+               "click the button below to continue shopping"]
+    if (any(marker in lower for marker in markers)
+            or soup.select_one('input[name="captchacharacters"]')
+            or soup.select_one('form[action*="validateCaptcha"]')):
         raise ValueError("Retailer returned a bot check or access-denied page. Stop here.")
 
 
