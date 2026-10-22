@@ -8,10 +8,6 @@ from urllib.parse import parse_qs, urljoin, urlsplit
 import requests
 from bs4 import BeautifulSoup
 
-from playwright.sync_api import sync_playwright
-from playwright_stealth import stealth_sync
-
-
 PRODUCT_PATHS = {
     "amazon": r"/(?:dp|gp/product)/([A-Z0-9]{10})(?:/|$)",
     "bestbuy": r"/(?:site/.+/(\d+)\.p|product/[^/]+/([A-Z0-9]+))(?:/|$)",
@@ -127,17 +123,17 @@ def fetch_page(url):
 
 
 def fetch_rendered_page(url):
-    """Optional Chrome rendering for JavaScript-rendered product pages."""
+    """Optional Chromium rendering for JavaScript-rendered product pages."""
     try:
         from playwright.sync_api import sync_playwright, Error
+        from playwright_stealth import Stealth
     except ImportError:
         raise ValueError("Install scraper/requirements.txt to use --browser.") from None
     url = clean_url(url)
     try:
-        with sync_playwright() as playwright:
-            with playwright.chromium.launch(channel="chrome", headless=True) as browser:
+        with Stealth().use_sync(sync_playwright()) as playwright:
+            with playwright.chromium.launch(headless=True) as browser:
                 page = browser.new_page()
-                stealth_sync(page)
                 response = page.goto(url, wait_until="domcontentloaded", timeout=30000)
                 if response is None or response.status != 200:
                     raise ValueError("Browser did not receive a successful product page.")

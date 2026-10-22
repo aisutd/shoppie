@@ -23,7 +23,7 @@ def main(argv=None):
     inputs.add_argument("--url", action="append", help="One product URL; repeat to process several")
     inputs.add_argument("--urls", help="URL file relative to scraper/ (default: urls.txt)")
     parser.add_argument("--stage", choices=["fetch", "extract", "validate"], default="validate")
-    parser.add_argument("--browser", action="store_true", help="Optional background Chrome rendering")
+    parser.add_argument("--browser", action="store_true", help="Optional background Chromium rendering for JavaScript pages")
     parser.add_argument("--manual", action="store_true", help="Enter a human-verified real observation instead of fetching HTML; requires one --url")
     parser.add_argument("--html", help="Local public HTML path relative to scraper/, for one --url only")
     parser.add_argument("--keep-html", action="store_true", help="Archive public HTML in scraper/data/pages/")
