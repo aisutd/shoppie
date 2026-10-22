@@ -1,0 +1,25 @@
+{
+  "kind": "real response excerpt, not synthetic product data",
+  "source_url": "https://www.target.com/p/lenovo-legion-5-15-1-oled-wqxga-165hz-gaming-notebook-amd-ryzen-7-260-16gb-ram-512gb-ssd-nvidia-geforce-rtx-5060-eclipse-black/-/A-1004661132",
+  "captured_on": "2026-10-14",
+  "capture_method": "Signed-out public HTTP GET via the lesson fetch checkpoint; --keep-html archive",
+  "source_archive": "scraper/data/pages/target-1004661132.html (ignored local original)",
+  "original_sha256": "4c4618f0a199f08f8b1d52fc69a844fa352bcf1dfdd9191ce168fc26ee47c240",
+  "fixture_sha256": "9bd18b3a455f992f13ed964ae7290b75e599a56f10a883280afb29cede490663",
+  "fixture_hash_encoding": "UTF-8 with LF line endings, to remain stable across Windows Git checkouts",
+  "minimization": "Retained title, canonical, main h1, product-price placeholder and any parser-relevant product metadata/JSON-LD. Excluded unrelated scripts, navigation and tracking. No product field values added or changed.",
+  "verification": "Full archive and minimized fixture produce identical source fields. The fetched page identified TCIN 1004661132; its title was also verified against the retailer page during capture. No price/currency was available to this parser.",
+  "expected_source_fields": {
+    "retailer": "target",
+    "product_id": "1004661132",
+    "product_url": "https://www.target.com/p/lenovo-legion-5-15-1-oled-wqxga-165hz-gaming-notebook-amd-ryzen-7-260-16gb-ram-512gb-ssd-nvidia-geforce-rtx-5060-eclipse-black/-/A-1004661132",
+    "title": "Lenovo Legion 5 15.1\" OLED WQXGA 165HZ Gaming Notebook AMD Ryzen 7 260 16GB RAM 512GB SSD NVIDIA GeForce RTX 5060 Eclipse Black",
+    "price": null,
+    "currency": null,
+    "availability": null,
+    "seller": null,
+    "discount": null,
+    "extraction_method": "html"
+  },
+  "expected_validation": "reject missing price and currency; this is not a complete accepted live-price fixture"
+}

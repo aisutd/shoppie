@@ -1,0 +1,12 @@
+# Local credentials and environments
+# These filename rules also cover scraper/.env and other nested directories.
+.env
+.env.*
+.env-*
+!.env.example
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+# Downloaded public pages and lesson output
+data/
