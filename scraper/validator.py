@@ -28,6 +28,14 @@ class Laptop(BaseModel):
     discount: None = None  # Not extracted in this lesson. Unknown is not zero.
     observed_at: datetime
     extraction_method: Literal["json-ld", "html", "manual"]
+    brand: str | None = Field(default=None, max_length=300)
+    model: str | None = Field(default=None, max_length=300)
+    cpu: str | None = Field(default=None, max_length=300)
+    ram: str | None = Field(default=None, max_length=300)
+    storage: str | None = Field(default=None, max_length=300)
+    screen_size: str | None = Field(default=None, max_length=300)
+    color: str | None = Field(default=None, max_length=300)
+    condition: str | None = Field(default=None, max_length=300)
 
     @field_validator("title")
     @classmethod

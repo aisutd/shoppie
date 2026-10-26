@@ -6,6 +6,7 @@ import requests
 
 from scraper.config import DatabaseConfig
 from scraper.validator import Laptop
+from scraper.scraper import clean_url
 
 
 @dataclass(frozen=True)
@@ -92,3 +93,27 @@ def upsert_product(database: Database, product: Laptop):
         raise DatabaseError("CONNECTION FAILURE: upsert result may be unknown. Check the table before retrying.") from None
     if response.status_code not in (200, 201, 204):
         raise_response_error(response)
+
+
+def get_product(database: Database, product_url: str):
+    """Read the latest row for an exact normalized URL, or None if absent."""
+    url = clean_url(product_url)
+    try:
+        response = requests.get(
+            f"{database.url}/rest/v1/products",
+            params={"select": "id,title,price,currency,product_url,source,category,scraped_at",
+                    "product_url": f"eq.{url}", "limit": "2"},
+            headers=request_headers(database), timeout=25, allow_redirects=False,
+        )
+    except requests.RequestException:
+        raise DatabaseError("CONNECTION FAILURE: could not retrieve the product.") from None
+    if response.status_code != 200:
+        raise_response_error(response)
+    try:
+        rows = response.json()
+    except ValueError:
+        raise DatabaseError("CONNECTION/RESPONSE FAILURE: expected a JSON products response.") from None
+    if (not isinstance(rows, list) or len(rows) > 1
+            or any(not isinstance(row, dict) or row.get("product_url") != url for row in rows)):
+        raise DatabaseError("CONNECTION/RESPONSE FAILURE: expected one matching product or an empty result.")
+    return rows[0] if rows else None

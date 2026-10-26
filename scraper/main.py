@@ -15,6 +15,44 @@ from pydantic import ValidationError
 
 from scraper import config, scraper
 from scraper.validator import validate_record
+from scraper.diagnostics import failure_metadata, should_browser_fallback
+
+
+def collect_live(url, stage, session, browser=False, http_only=False, emit=None):
+    """Run the existing stages with at most one safe HTTP-to-browser fallback."""
+    url = scraper.clean_url(url)
+    modes = ["browser"] if browser else ["http"]
+    if not browser and not http_only:
+        modes.append("browser")
+    for index, mode in enumerate(modes):
+        result = dict(html=None, candidate=None, product=None, error=None, stage="fetch",
+                      fetched=0, extracted=0, mode=mode)
+        try:
+            html = scraper.fetch_rendered_page(url, session) if mode == "browser" else scraper.fetch_page(url)
+            scraper.check_page(html)
+            result.update(html=html, fetched=1)
+            if stage != "fetch":
+                result["stage"] = "extraction"
+                result["candidate"] = scraper.extract_product(html, url)
+                result["extracted"] = 1
+            if stage == "validate":
+                result["stage"] = "validation"
+                result["product"] = validate_record(result["candidate"])
+        except ValueError as error:
+            result["error"] = error
+        error = result["error"]
+        fallback = (error is not None and index + 1 < len(modes)
+                    and should_browser_fallback(error, result["stage"], result["candidate"]))
+        event = dict(mode=mode, fetched=result["fetched"], extracted=result["extracted"],
+                     validated=int(result["product"] is not None), fallback=fallback)
+        if mode == "browser" and session.last_navigation:
+            event["navigation"] = session.last_navigation
+        if error:
+            event.update(failure_metadata(error, result["stage"]))
+        if emit:
+            emit(event)
+        if not fallback:
+            return result
 
 
 def main(argv=None):
@@ -24,6 +62,7 @@ def main(argv=None):
     inputs.add_argument("--urls", help="URL file relative to scraper/ (default: urls.txt)")
     parser.add_argument("--stage", choices=["fetch", "extract", "validate"], default="validate")
     parser.add_argument("--browser", action="store_true", help="Optional background Chrome rendering")
+    parser.add_argument("--http-only", action="store_true", help="Disable automatic browser fallback (HTTP diagnostics)")
     parser.add_argument("--manual", action="store_true", help="Enter a human-verified real observation instead of fetching HTML; requires one --url")
     parser.add_argument("--html", help="Local public HTML path relative to scraper/, for one --url only")
     parser.add_argument("--keep-html", action="store_true", help="Archive public HTML in scraper/data/pages/")
@@ -31,6 +70,8 @@ def main(argv=None):
     parser.add_argument("--check-db", action="store_true", help="Read-only connectivity check of the configured products table")
     parser.add_argument("--limit", type=int, help="Maximum validated records/write attempts; rejections do not consume the limit")
     args = parser.parse_args(argv)
+    if args.http_only and (args.browser or args.manual or args.html or args.check_db):
+        parser.error("--http-only cannot be combined with browser/manual/HTML/database-check modes")
     if args.manual and (args.check_db or args.html or args.browser or args.keep_html or args.stage != "validate" or not args.url or len(args.url) != 1):
         parser.error("--manual requires exactly one --url and cannot use browser/HTML/checkpoint flags")
     if args.limit is not None and args.limit < 1:
@@ -64,92 +105,109 @@ def main(argv=None):
     counts = {"fetched": 0, "extracted": 0, "validated": 0, "rejected": 0, "saved": 0, "failed_saves": 0}
     database = None
     saving_unavailable = False
-    for index, source_url in enumerate(urls, start=1):
-        completed = counts[{"fetch": "fetched", "extract": "extracted", "validate": "validated"}[args.stage]]
-        if args.limit is not None and completed >= args.limit:
-            print(f"Limit reached: {args.limit} successfully completed record(s) for this stage.")
-            break
-        print(f"\nPage {index}/{len(urls)}")
-        try:
-            url = scraper.clean_url(source_url)
-            retailer, product_id = scraper.identify_product(url)
-            print(f"{retailer}: {product_id}")
-            if args.manual:
-                from scraper.manual import collect_product
-                candidate = collect_product(url)
-            elif args.html:
-                html = config.script_path(args.html).read_text(encoding="utf-8")
-                print("LOCAL HTML: rehearsal only; observed_at is parsing time, not a live price check.")
-            elif args.browser:
-                html = scraper.fetch_rendered_page(url)
-            else:
-                html = scraper.fetch_page(url)
-            if not args.manual:
-                scraper.check_page(html)
-                counts["fetched"] += 1
-            if args.keep_html:
-                folder = config.SCRIPT_DIR / "data" / "pages"
-                folder.mkdir(parents=True, exist_ok=True)
-                # Query variants must not overwrite each other's rehearsal archives.
-                suffix = "-" + hashlib.sha256(url.encode()).hexdigest()[:12] if "?" in url else ""
-                filename = f"{retailer}-{product_id}{suffix}.html"
-                (folder / filename).write_text(html, encoding="utf-8")
-                print(f"Archived in scraper/data/pages/{filename}")
-            if args.stage == "fetch":
-                soup = BeautifulSoup(html, "html.parser")
-                print("Page title:", soup.title.get_text(strip=True) if soup.title else "(missing)")
-                continue
-            if not args.manual:
-                candidate = scraper.extract_product(html, url)
-                counts["extracted"] += 1
-            if args.stage == "extract":
-                print(json.dumps(candidate, indent=2, ensure_ascii=True))
-                print("Candidate is unvalidated.")
-                continue
-            product = validate_record(candidate)
-            counts["validated"] += 1
-            print(product.model_dump_json(indent=2))
-            print("ACCEPTED")
-        except ValidationError as error:
-            counts["rejected"] += 1
-            print("REJECTED: required fields failed validation; no database write.")
-            for issue in error.errors():
-                field = ".".join(str(part) for part in issue["loc"])
-                # Explain missing source data without echoing untrusted inputs.
-                if issue["loc"] in [("title",), ("price",), ("currency",)] and candidate.get(field) is None:
-                    reason = "not found in the retrieved product data"
-                elif issue["loc"] == ("currency",):
-                    reason = "must be explicitly USD; a bare $ does not establish currency"
-                elif issue["loc"] == ("price",):
-                    reason = "must be a finite positive number fitting numeric(12,2)"
-                elif issue["loc"] == ("title",):
-                    reason = "must describe a laptop and contain at least five characters"
-                else:
-                    reason = issue["type"]
-                print(" -", field + ":", reason)
-            continue
-        except (ValueError, OSError) as error:
-            counts["rejected"] += 1
-            print("REJECTED:", str(error) if isinstance(error, ValueError) else "Could not read/write local HTML.")
-            continue
-
-        if args.save:
-            if saving_unavailable:
-                counts["failed_saves"] += 1
-                print("SAVE FAILED: database configuration failed earlier in this run.")
-                continue
+    with scraper.BrowserSession() as browser_session:
+        for index, source_url in enumerate(urls, start=1):
+            completed = counts[{"fetch": "fetched", "extract": "extracted", "validate": "validated"}[args.stage]]
+            if args.limit is not None and completed >= args.limit:
+                print(f"Limit reached: {args.limit} successfully completed record(s) for this stage.")
+                break
+            print(f"\nPage {index}/{len(urls)}")
+            stage = "before_fetch"
+            candidate = product = None
+            collection_error = None
+            live = not (args.manual or args.html)
             try:
-                # Importing, configuring and connecting happen only after acceptance.
-                from scraper.database import connect, upsert_product
-                if database is None:
-                    database = connect(config.load_database_config())
-                upsert_product(database, product)
-                counts["saved"] += 1
-                print("SAVED: shared product row inserted or updated.")
-            except ValueError as error:
-                counts["failed_saves"] += 1
-                saving_unavailable = database is None
-                print("SAVE FAILED:", error)
+                url = scraper.clean_url(source_url)
+                retailer, product_id = scraper.identify_product(url)
+                print(f"{retailer}: {product_id}")
+                stage = "validation" if args.manual else "fetch"
+                if args.manual:
+                    from scraper.manual import collect_product
+                    candidate = collect_product(url)
+                elif args.html:
+                    html = config.script_path(args.html).read_text(encoding="utf-8")
+                    print("LOCAL HTML: rehearsal only; observed_at is parsing time, not a live price check.")
+                else:
+                    collection = collect_live(url, args.stage, browser_session, args.browser, args.http_only,
+                                              emit=lambda event: print("ATTEMPT:", json.dumps(event)))
+                    html, candidate, product = collection["html"], collection["candidate"], collection["product"]
+                    stage = collection["stage"]
+                    counts["fetched"] += collection["fetched"]
+                    counts["extracted"] += collection["extracted"]
+                    collection_error = collection["error"]
+                if not args.manual and not live:
+                    scraper.check_page(html)
+                    counts["fetched"] += 1
+                if args.keep_html and html is not None:
+                    folder = config.SCRIPT_DIR / "data" / "pages"
+                    folder.mkdir(parents=True, exist_ok=True)
+                    # Query variants must not overwrite each other's rehearsal archives.
+                    suffix = "-" + hashlib.sha256(url.encode()).hexdigest()[:12] if "?" in url else ""
+                    filename = f"{retailer}-{product_id}{suffix}.html"
+                    (folder / filename).write_text(html, encoding="utf-8")
+                    print(f"Archived in scraper/data/pages/{filename}")
+                if collection_error is not None:
+                    raise collection_error
+                if args.stage == "fetch":
+                    soup = BeautifulSoup(html, "html.parser")
+                    print("Page title:", soup.title.get_text(strip=True) if soup.title else "(missing)")
+                    continue
+                if not args.manual and candidate is None:
+                    stage = "extraction"
+                    candidate = scraper.extract_product(html, url)
+                    counts["extracted"] += 1
+                if args.stage == "extract":
+                    print(json.dumps(candidate, indent=2, ensure_ascii=True))
+                    print("Candidate is unvalidated.")
+                    continue
+                stage = "validation"
+                if product is None:
+                    product = validate_record(candidate)
+                counts["validated"] += 1
+                print(product.model_dump_json(indent=2))
+                print("ACCEPTED")
+            except ValidationError as error:
+                counts["rejected"] += 1
+                print("DIAGNOSTIC:", json.dumps(dict(failure_metadata(error, "validation"), fallback_allowed=should_browser_fallback(error, "validation", candidate))))
+                print("REJECTED: required fields failed validation; no database write.")
+                for issue in error.errors():
+                    field = ".".join(str(part) for part in issue["loc"])
+                    # Explain missing source data without echoing untrusted inputs.
+                    if issue["loc"] in [("title",), ("price",), ("currency",)] and candidate.get(field) is None:
+                        reason = "not found in the retrieved product data"
+                    elif issue["loc"] == ("currency",):
+                        reason = "must be USD established by supported product price evidence"
+                    elif issue["loc"] == ("price",):
+                        reason = "must be a finite positive number fitting numeric(12,2)"
+                    elif issue["loc"] == ("title",):
+                        reason = "must describe a laptop and contain at least five characters"
+                    else:
+                        reason = issue["type"]
+                    print(" -", field + ":", reason)
+                continue
+            except (ValueError, OSError) as error:
+                counts["rejected"] += 1
+                print("DIAGNOSTIC:", json.dumps(dict(failure_metadata(error, stage), fallback_allowed=should_browser_fallback(error, stage, candidate))))
+                print("REJECTED:", str(error) if isinstance(error, ValueError) else "Could not read/write local HTML.")
+                continue
+
+            if args.save:
+                if saving_unavailable:
+                    counts["failed_saves"] += 1
+                    print("SAVE FAILED: database configuration failed earlier in this run.")
+                    continue
+                try:
+                    # Importing, configuring and connecting happen only after acceptance.
+                    from scraper.database import connect, upsert_product
+                    if database is None:
+                        database = connect(config.load_database_config())
+                    upsert_product(database, product)
+                    counts["saved"] += 1
+                    print("SAVED: shared product row inserted or updated.")
+                except ValueError as error:
+                    counts["failed_saves"] += 1
+                    saving_unavailable = database is None
+                    print("SAVE FAILED:", error)
 
     print("\nResults:", ", ".join(f"{name}={count}" for name, count in counts.items()))
     if not args.save:

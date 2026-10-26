@@ -68,7 +68,7 @@ def test_real_fixture_extracts_without_credentials_or_network(monkeypatch, capsy
 def test_failed_fetch_continues_to_later_urls_without_database(pipeline, capsys):
     fetch, settings, post = pipeline
     fetch.side_effect = [ValueError("Synthetic fetch failure"), synthetic_page(SECOND), synthetic_page(THIRD)]
-    assert main.main([]) == 1
+    assert main.main(["--http-only"]) == 1
     assert [call.args[0] for call in fetch.call_args_list] == [FIRST, SECOND, THIRD]
     settings.assert_not_called()
     post.assert_not_called()
@@ -98,7 +98,7 @@ def test_limit_one_stops_after_first_confirmed_save(pipeline, capsys):
 def test_limit_one_does_not_skip_rejected_pages(pipeline, capsys):
     fetch, settings, post = pipeline
     fetch.side_effect = [ValueError("Synthetic fetch failure"), '<h1>Synthetic laptop</h1>', synthetic_page(THIRD)]
-    assert main.main(["--limit", "1", "--save"]) == 1  # rejections are reported as nonzero too
+    assert main.main(["--http-only", "--limit", "1", "--save"]) == 1  # Isolate HTTP stage failures.
     assert fetch.call_count == 3
     post.assert_called_once()
     assert "validated=1, rejected=2, saved=1, failed_saves=0" in capsys.readouterr().out

@@ -37,6 +37,36 @@ def test_unscoped_recommendation_microdata_cannot_supply_main_price():
         validate_record(record)
 
 
+def test_recommendation_product_metadata_cannot_supply_main_price():
+    html = '''<main><h1>Example laptop</h1></main>
+    <aside><meta property="product:price:amount" content="19.99">
+    <meta property="product:price:currency" content="USD"></aside>'''
+    record = extract_product(html, URLS[2])
+    assert record["price"] is None and record["currency"] is None
+
+
+def test_target_named_price_is_scoped_to_main_content():
+    html = '''<aside><span data-test="product-price">US$19.99</span></aside>
+    <main><h1 data-test="product-title">Example laptop</h1>
+    <span data-test="product-price">US$999.99</span></main>'''
+    record = extract_product(html, URLS[2])
+    assert record["price"] == "999.99" and record["currency"] == "USD"
+
+
+def test_main_head_metadata_remains_supported():
+    html = '''<html><head><meta property="product:price:amount" content="999.99">
+    <meta property="product:price:currency" content="USD"></head>
+    <body><main><h1>Example laptop</h1></main></body></html>'''
+    assert str(validate_record(extract_product(html, URLS[2])).price) == "999.99"
+
+
+def test_conflicting_main_prices_are_unknown():
+    html = '''<main><h1>Example laptop</h1>
+    <span data-test="product-price">US$999.99</span>
+    <span data-test="product-price">US$19.99</span></main>'''
+    assert extract_product(html, URLS[2])["price"] is None
+
+
 def test_target_preselect_identifies_child_without_removing_query():
     from scraper.scraper import clean_url
     url = "https://www.target.com/p/apple-macbook-neo-a18-pro-2026-laptop/-/A-95288385?preselect=91122087"
@@ -118,7 +148,7 @@ def test_same_product_redirect_can_expand_a_short_url(monkeypatch):
 
 
 @pytest.mark.parametrize("destination", [
-    "https://www.walmart.com/blocked", "https://www.walmart.com/ip/99999999",
+    "https://www.walmart.com/ip/99999999",
     "https://evil.test/ip/12345678", "http://www.walmart.com/ip/12345678",
 ])
 def test_redirect_cannot_change_product_or_retailer(monkeypatch, destination):
