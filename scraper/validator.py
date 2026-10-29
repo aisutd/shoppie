@@ -26,6 +26,8 @@ class Laptop(BaseModel):
     availability: str | None = None
     seller: str | None = Field(default=None, max_length=300)
     discount: None = None  # Not extracted in this lesson. Unknown is not zero.
+    description: str | None = None
+    shipping_cost: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2, allow_inf_nan=False)
     brand: str | None = None
     model: str | None = None
     category: str | None = None
@@ -74,8 +76,21 @@ class Laptop(BaseModel):
         return self
 
 
-def validate_record(record):
+class UnavailableLaptop(Laptop):
+    price: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=2, allow_inf_nan=False)
+    currency: Literal["USD"] | None = None
+
+    @model_validator(mode="after")
+    def explicitly_unavailable(self):
+        if self.availability not in {"OutOfStock", "SoldOut", "Discontinued"}:
+            raise ValueError("a missing price is allowed only for an explicitly unavailable observation")
+        return self
+
+
+def validate_record(record, allow_unavailable=False):
     """Clean formatting on a copy, then apply the required-field rules."""
+    if not isinstance(record, dict):
+        raise ValueError("product record must be an object")
     cleaned = dict(record)
     for name, value in cleaned.items():
         if isinstance(value, str):
@@ -93,5 +108,9 @@ def validate_record(record):
         cleaned["seller"] = None
     if isinstance(cleaned.get("product_url"), str):
         cleaned["product_url"] = clean_url(cleaned["product_url"])
+    availability = cleaned.get("availability")
+    availability = re.sub(r"^https?://schema\.org/", "", availability) if isinstance(availability, str) else None
+    if allow_unavailable and cleaned.get("price") is None and availability in {"OutOfStock", "SoldOut", "Discontinued"}:
+        return UnavailableLaptop.model_validate(cleaned)
     return Laptop.model_validate(cleaned)
 

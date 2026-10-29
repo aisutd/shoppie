@@ -66,3 +66,21 @@ def find_listings(connection, brand, model_number):
         return [prepare(row) for row in cursor.fetchall()]
     finally:
         cursor.close()
+
+
+def get_current_offers(connection):
+    """Read latest MySQL offers, including optional descriptions preserved in raw JSON."""
+    cursor = connection.cursor(dictionary=True, buffered=True)
+    try:
+        cursor.execute("""SELECT l.*, r.retailer_key, o.scraped_at, o.price, o.shipping_cost,
+            o.currency, o.`condition`, o.seller, o.availability, o.raw_payload
+            FROM listings l JOIN retailers r ON r.id=l.retailer_id
+            JOIN listing_observations o ON o.listing_id=l.id AND o.scraped_at=
+                (SELECT MAX(newest.scraped_at) FROM listing_observations newest WHERE newest.listing_id=l.id)
+            ORDER BY l.id""")
+        rows = [prepare(row) for row in cursor.fetchall()]
+        for row in rows:
+            row["description"] = row.get("raw_payload", {}).get("raw", {}).get("description")
+        return rows
+    finally:
+        cursor.close()

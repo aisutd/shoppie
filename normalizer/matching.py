@@ -85,3 +85,44 @@ def group_listings(
             groups.append([listing])
 
     return groups
+
+
+def variant_key(field, value):
+    if value is None:
+        return None
+    if field in {"ram_gb", "storage_gb"}:
+        return float(value)
+    text = identity_key(str(value))
+    if field == "cpu":
+        import re
+        text = re.sub(r"^(apple|intel|amd)\s+", "", text)
+    return text
+
+
+def check_requirements(listing, required):
+    """Unknown facts require review; known hardware contradictions reject."""
+    import re
+    reasons, missing = [], []
+    for field, expected in required.items():
+        if expected is None:
+            continue
+        actual = listing.get("attributes", {}).get(field) if field in VARIANT_FIELDS else listing.get(field)
+        if field == "cpu" and actual is not None:
+            complete = re.search(r"\bm\d+\b|i[3579]-\d{4,5}|ryzen\s+[3579]\s+\d{4}", str(actual), re.I)
+            if not complete:
+                missing.append("cpu generation")
+                continue
+        if actual is None:
+            missing.append(field)
+        elif variant_key(field, actual) != variant_key(field, expected):
+            return {"status": "rejected", "reasons": [f"{field} differs from request"]}
+        else:
+            reasons.append(f"{field} agrees with request")
+    if missing:
+        return {"status": "manual_review", "reasons": reasons + ["missing: " + ", ".join(missing)]}
+    if required.get("family") and not listing.get("model_number"):
+        return {"status": "manual_review", "reasons": reasons + ["manufacturer model number is missing"]}
+    # exact offers require model identity plus an explicit hardware configuration
+    has_identity = required.get("model_number") or required.get("family")
+    exact = has_identity and all(required.get(key) is not None for key in ("ram_gb", "storage_gb", "cpu"))
+    return {"status": "exact" if exact else "manual_review", "reasons": reasons}

@@ -1,8 +1,11 @@
 """Retrieve public laptop pages and extract fields without database access."""
 
 import json
+import os
+from pathlib import Path
 import re
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from urllib.parse import parse_qs, urljoin, urlsplit
 
 import requests
@@ -19,6 +22,8 @@ PRODUCT_PATHS = {
 
 def identify_product(url):
     """Accept only HTTPS product URLs at our four US retailers."""
+    if not isinstance(url, str) or any(character.isspace() for character in url):
+        raise ValueError("Malformed product URL: embedded whitespace is not allowed")
     try:
         parts = urlsplit(url)
         invalid = parts.scheme != "https" or parts.username or parts.password or parts.port
@@ -84,7 +89,8 @@ def check_page(html):
         tag.decompose()
     lower = soup.get_text(" ", strip=True).lower()
     markers = ["robot check", "validatecaptcha", "verify you are human",
-               "verify you're human", "press & hold", "access denied"]
+               "verify you're human", "press & hold", "access denied", "too many requests",
+               "sign in to continue", "unusual traffic"]
     if any(marker in lower for marker in markers) or soup.select_one('input[name="captchacharacters"]'):
         raise ValueError("Retailer returned a bot check or access-denied page. Stop here.")
 
@@ -120,46 +126,62 @@ def fetch_page(url):
     return response.text
 
 
-def fetch_rendered_page(url):
-    """Optional Chrome rendering for JavaScript-rendered product pages."""
+def read_browser_page(page, url):
+    """Wait for explicit product fields in a normal Chromium page."""
+    response = page.goto(url, wait_until="domcontentloaded", timeout=30000)
+    if response is None:
+        raise ValueError("Browser did not receive a successful product page")
+    if response.status != 200:
+        raise ValueError(f"Retailer returned HTTP {response.status}; browser collection stopped")
+    for attempt in range(10):
+        try:
+            same_product = same_requested_product(url, page.url)
+        except ValueError:
+            same_product = False
+        if not same_product:
+            raise ValueError("Browser redirected away from the requested product")
+        html = page.content()
+        check_page(html)
+        candidate = extract_product(html, url)
+        if candidate["title"] and candidate["price"] is not None and candidate["currency"]:
+            return html
+        page.wait_for_timeout(1000)
+    # checks identity and access once more after the last rendering wait
+    if not same_requested_product(url, page.url):
+        raise ValueError("Browser redirected away from the requested product")
+    html = page.content()
+    check_page(html)
+    return html
+
+
+def fetch_rendered_page(url, headless=True):
+    """Render with installed Chromium; never solve a retailer challenge."""
     try:
         from playwright.sync_api import sync_playwright, Error
     except ImportError:
-        raise ValueError("Install scraper/requirements.txt to use --browser.") from None
+        raise ValueError("Install Playwright and its Chromium browser to use --browser") from None
     url = clean_url(url)
+    os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", str(Path(__file__).resolve().parents[1] / ".local/browsers"))
     try:
         with sync_playwright() as playwright:
-            with playwright.chromium.launch(channel="chrome", headless=True) as browser:
+            with playwright.chromium.launch(headless=headless) as browser:
                 page = browser.new_page()
-                response = page.goto(url, wait_until="domcontentloaded", timeout=30000)
-                if response is None or response.status != 200:
-                    raise ValueError("Browser did not receive a successful product page.")
-                # Observe readiness instead of assuming scripts finish in five seconds.
-                # A challenge is terminal; never solve or work around it.
-                for attempt in range(10):
-                    html = page.content()
-                    check_page(html)
-                    candidate = extract_product(html, url)
-                    if candidate["title"] and candidate["price"] is not None and candidate["currency"]:
-                        break
-                    visible = BeautifulSoup(html, "html.parser")
-                    for tag in visible.select("script, style"):
-                        tag.decompose()
-                    if "there was a temporary issue" in visible.get_text(" ", strip=True).lower():
-                        raise ValueError("Target reported a temporary product-data issue; price/currency were not supplied. Try the real page again later.")
-                    page.wait_for_timeout(2000)
-                html = page.content()
-                check_page(html)
-                try:
-                    same_product = same_requested_product(url, page.url)
-                except ValueError:
-                    same_product = False
-                if not same_product:
-                    raise ValueError("Browser redirected away from the requested product. Review the URL in your browser.")
+                # aborts changed-product navigations before another page is requested
+                def guard(route):
+                    request = route.request
+                    if request.is_navigation_request() and request.frame == page.main_frame:
+                        try:
+                            allowed = same_requested_product(url, request.url)
+                        except ValueError:
+                            allowed = False
+                        if not allowed:
+                            route.abort()
+                            return
+                    route.continue_()
+                page.route("**/*", guard)
+                return read_browser_page(page, url)
     except Error:
-        raise ValueError("Browser load failed, timed out, or closed. Check Chrome and network access.") from None
-    check_page(html)
-    return html
+        raise ValueError("Browser load failed; check installed Chromium and network access") from None
 
 
 def schema_type(node, name):
@@ -236,8 +258,11 @@ def product_details(product):
         "brand": named_value(product.get("brand")),
         "model": named_value(product.get("model")),
         "category": named_value(product.get("category")),
+        "description": named_value(product.get("description")),
         "gtin": None, "attributes": {},
     }
+    if details["description"]:
+        details["description"] = BeautifulSoup(details["description"], "html.parser").get_text(" ", strip=True) or None
     for key in ("gtin14", "gtin13", "gtin12", "gtin8", "gtin"):
         if isinstance(product.get(key), str) and product[key].strip():
             details["gtin"] = product[key].strip()
@@ -246,23 +271,31 @@ def product_details(product):
     if isinstance(properties, dict):
         properties = [properties]
     if isinstance(properties, list):
-        names = {"color": "color", "ram": "ram_gb", "memory": "ram_gb",
-                 "storage": "storage_gb", "screen size": "screen_inches"}
+        names = {"cpu": "cpu", "processor": "cpu", "color": "color", "ram": "ram_gb", "memory": "ram_gb",
+                 "ram size": "ram_gb", "system memory (ram)": "ram_gb",
+                 "system memory ram": "ram_gb", "storage": "storage_gb",
+                 "total storage capacity": "storage_gb", "processor model": "cpu",
+                 "screen size": "screen_inches"}
         for item in properties:
             if not isinstance(item, dict):
                 continue
             field = names.get(str(item.get("name", "")).strip().lower())
             value = item.get("value")
-            if field == "color" and isinstance(value, str):
-                details["attributes"][field] = value.strip() or None
-            elif field and isinstance(value, str):
-                unit = "GB" if field in {"ram_gb", "storage_gb"} else "in"
-                match = re.fullmatch(rf"\s*(\d+(?:\.\d+)?)\s*{unit}\s*", value, re.I)
+            parsed = None
+            if field in {"color", "cpu"} and isinstance(value, str):
+                parsed = value.strip() or None
+            elif field and isinstance(value, (str, int, float)) and not isinstance(value, bool):
+                unit = item.get("unitText") or item.get("unitCode") or ""
+                displayed = f"{value} {unit}".strip()
+                units = "GB|TB" if field in {"ram_gb", "storage_gb"} else "in|inch|inches"
+                match = re.fullmatch(rf"\s*(\d+(?:\.\d+)?)\s*({units})\s*", displayed, re.I)
                 if match:
-                    number = float(match.group(1))
-                    details["attributes"][field] = int(number) if number.is_integer() else number
+                    number = float(match.group(1)) * (1000 if match.group(2).upper() == "TB" else 1)
+                    parsed = int(number) if number.is_integer() else number
+            if field and parsed is not None:
+                details["attributes"] = merge_specs(details["attributes"], {field: parsed})
     if isinstance(product.get("color"), str):
-        details["attributes"]["color"] = product["color"].strip() or None
+        details["attributes"] = merge_specs(details["attributes"], {"color": product["color"].strip() or None})
     return details
 
 
@@ -303,7 +336,11 @@ def extract_product(html, url):
     # Refuse a different selected product (for example an Amazon variant change).
     canonical = soup.select_one('link[rel="canonical"]')
     if canonical and canonical.get("href"):
-        if identify_product(urljoin(url, canonical["href"])) != (retailer, product_id):
+        try:
+            same_identity = identify_product(urljoin(url, canonical["href"])) == (retailer, product_id)
+        except ValueError:
+            same_identity = False
+        if not same_identity:
             raise ValueError("Page canonical URL identifies a different product.")
     if retailer == "amazon":
         asin = soup.select_one('input#ASIN')
@@ -316,6 +353,7 @@ def extract_product(html, url):
         "observed_at": datetime.now(timezone.utc).isoformat(),
         "extraction_method": "html",
         "brand": None, "model": None, "category": None, "gtin": None,
+        "description": None, "shipping_cost": None,
         "attributes": {},
     }
     product = main_product(soup, url)
@@ -328,6 +366,12 @@ def extract_product(html, url):
                         "walmart": 'h1[itemprop="name"], h1'}
             record["title"] = text(soup, headings[retailer])
         record.update(product_details(product))
+        # compares only explicit page-level identity fields, not recommendations
+        for field in ("brand", "model"):
+            declared = meta(soup, field)
+            if declared and record[field] and " ".join(declared.casefold().split()) != " ".join(record[field].casefold().split()):
+                raise ValueError(f"Conflicting main-product {field}; selected listing is inconsistent")
+            record[field] = record[field] or declared
         offers = product.get("offers")
         if isinstance(offers, list) and len(offers) == 1:
             offers = offers[0]
@@ -340,8 +384,37 @@ def extract_product(html, url):
         record["price"] = offers.get("price")
         record["currency"] = offers.get("priceCurrency")
         record["availability"] = offers.get("availability")
+        visible_availability = meta(soup, "availability")
+        known = {"InStock", "OutOfStock", "SoldOut", "Discontinued", "PreOrder", "BackOrder"}
+        normalize_stock = lambda value: re.sub(r"^https?://schema\.org/", "", value) if isinstance(value, str) else None
+        left, right = normalize_stock(record["availability"]), normalize_stock(visible_availability)
+        if left in known and right in known and left != right:
+            raise ValueError("Conflicting main-product availability; review the offer manually")
+        if record["availability"] is None:
+            record["availability"] = visible_availability
+        condition = offers.get("itemCondition") or product.get("itemCondition")
+        conditions = {"NewCondition": "new", "UsedCondition": "used", "RefurbishedCondition": "refurbished"}
+        if isinstance(condition, str) and condition.rsplit("/", 1)[-1] in conditions:
+            record["attributes"]["condition"] = conditions[condition.rsplit("/", 1)[-1]]
+        shipping = offers.get("shippingDetails")
+        if isinstance(shipping, dict):
+            rate = shipping.get("shippingRate")
+            if isinstance(rate, dict) and rate.get("currency") == record["currency"]:
+                record["shipping_cost"] = rate.get("value")
         seller = offers.get("seller")
         record["seller"] = seller.get("name") if isinstance(seller, dict) else None
+        # rejects stale structured prices when a scoped main price contradicts them
+        selectors = {"bestbuy": '[data-testid="customer-price"]', "target": '[data-test="product-price"]',
+                     "amazon": '#corePriceDisplay_desktop_feature_div .a-price:not(.a-text-price) .a-offscreen'}
+        displayed = meta(soup, "price:amount") or (text(soup, selectors[retailer]) if retailer in selectors else None)
+        if displayed and re.fullmatch(r"(?:US\$|\$)?(?:\d+|\d{1,3}(?:,\d{3})+)\.\d{2}", displayed):
+            amount = re.sub(r"^(US\$|\$)", "", displayed).replace(",", "")
+            try:
+                if record["price"] is not None and Decimal(str(record["price"])) != Decimal(amount):
+                    raise ValueError("Conflicting main-product prices; review the page manually")
+            except InvalidOperation:
+                pass
+        record["attributes"] = merge_specs(record["attributes"], extract_specs(record["title"] or ""))
         return record
 
     # These fallbacks only inspect the main product's named HTML elements.
@@ -356,6 +429,7 @@ def extract_product(html, url):
     record["model"] = meta(soup, "model")
     record["category"] = meta(soup, "category")
     record["gtin"] = meta(soup, "gtin")
+    record["description"] = meta(soup, "description")
     if retailer == "target":
         # Rendering sometimes removes the main heading while this TCIN-bound
         # title remains in public page data. Price/currency must still be explicit.
@@ -378,6 +452,10 @@ def extract_product(html, url):
                 record["currency"] = "USD"
     if retailer == "amazon":
         container = soup.select_one("#corePriceDisplay_desktop_feature_div, #corePrice_feature_div")
+        if container and record["currency"] is None:
+            code = container.select_one('[itemprop="priceCurrency"], [data-a-currency-code]')
+            if code:
+                record["currency"] = code.get("content") or code.get("data-a-currency-code")
         if container and record["price"] is None:
             displayed = text(container, ".a-price:not(.a-text-price) .a-offscreen")
             if displayed:
@@ -386,5 +464,50 @@ def extract_product(html, url):
                     record["currency"] = "USD"
                 amount = re.sub(r"^(US\$|\$)", "", displayed).replace(",", "")
                 record["price"] = amount
+    record["attributes"] = extract_specs(record["title"] or "")
     return record
 
+
+
+def extract_specs(title):
+    """Read explicit laptop specifications from a selected title, never recommendations."""
+    specs = {}
+    if re.search(r"\d+\s*GB\s*(?:/|or)\s*\d+\s*GB\s*(?:RAM|memory|SSD|storage)", title, re.I):
+        raise ValueError("Product title describes multiple configurations; select one variant")
+    patterns = {
+        "ram_gb": r"\b(\d+)\s*GB\s*(?:(?:LP)?DDR[345]X?\s*)?(?:RAM|memory|unified memory)\b",
+        "storage_gb": r"\b(\d+(?:\.\d+)?)\s*(GB|TB)\s*(?:SSD|storage|HDD)\b",
+        "screen_inches": r'\b(\d+(?:\.\d+)?)\s*-?\s*(?:inch(?:es)?\b|in\b|")',
+    }
+    for key, pattern in patterns.items():
+        matches = re.findall(pattern, title, re.I)
+        values = set()
+        for match in matches:
+            if key == "storage_gb":
+                number, unit = match
+                values.add(float(number) * (1000 if unit.upper() == "TB" else 1))
+            else:
+                values.add(float(match))
+        if len(values) > 1:
+            raise ValueError(f"Conflicting {key} in selected product title")
+        if values:
+            value = values.pop()
+            specs[key] = int(value) if value.is_integer() else value
+    cpu_pattern = r"\b(?:Apple\s+)?M[1-9]\d*(?:\s+(?:Pro|Max|Ultra))?\b|\b(?:Intel\s+)?Core\s+i[3579]-\d{4,5}[A-Z]*\b|\b(?:AMD\s+)?Ryzen\s+[3579]\s+\d{4}[A-Z]*\b"
+    from normalizer.matching import variant_key
+    cpus = {variant_key("cpu", match.group(0)): match.group(0).strip() for match in re.finditer(cpu_pattern, title, re.I)}
+    if len(cpus) > 1:
+        raise ValueError("Conflicting CPU generations in selected product title")
+    if cpus:
+        specs["cpu"] = next(iter(cpus.values()))
+    return specs
+
+
+def merge_specs(explicit, title_specs):
+    from normalizer.matching import variant_key
+    result = dict(explicit)
+    for key, value in title_specs.items():
+        if key in result and variant_key(key, result[key]) != variant_key(key, value):
+            raise ValueError(f"Conflicting {key} between product details and title")
+        result.setdefault(key, value)
+    return result

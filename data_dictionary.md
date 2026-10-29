@@ -128,3 +128,10 @@ This data dictionary defines the standard fields that each product listing shoul
 - Use `"USD"` as the currency value for prices in U.S. dollars.
 - Keep condition values consistent whenever possible.
 - Each listing should have its own unique `id`.
+
+## Optional backend identity fields
+
+`raw.description` stores an explicit product description or null. The version 1
+envelope remains unchanged. Specifications stay in `raw.attributes`; descriptions
+and specifications may be used in identity embeddings. Current price, seller,
+retailer, and availability are excluded from explicit embedding fields.

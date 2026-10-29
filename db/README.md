@@ -78,8 +78,9 @@ retrieval. A real MySQL run has **not** been performed here.
 `normalizer/matching.py` keeps model-only matches separate. `db/similarity.py`
 reports explicit identifier/variant agreements or contradictions; equal GTIN can
 confirm an otherwise consistent identity. Brand/model-only candidates remain
-uncertain. `db/embeddings.py` provides deterministic identity text for a later
-embedding model. No uncertain match is merged and no untested score cutoff is used.
+uncertain. `db/embeddings.py` now loads pinned MiniLM, creates normalized 384-dimensional
+vectors in batches, and reuses matching hashes/configurations. See SETUP_MACOS.md
+for the local dashboard, vector schema, and separate review-only PostgreSQL adapter. No uncertain match is merged and no untested score cutoff is used.
 
 Before anyone populates a shared database:
 

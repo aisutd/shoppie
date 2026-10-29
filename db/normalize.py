@@ -161,6 +161,7 @@ def normalize(record):
         "source_url": url,
         "source_url_hash": sha256(url.encode("utf-8")).hexdigest(),
         "title": field_text("title", raw.get("title")),
+        "description": field_text("description", raw.get("description")),
         "brand": field_text("brand", raw.get("brand")),
         "model_number": field_text("model", raw.get("model")),
         "gtin": field_text("gtin", raw.get("gtin")),

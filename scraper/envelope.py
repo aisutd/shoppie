@@ -4,8 +4,7 @@ from scraper.validator import Laptop
 
 RETAILER_KEYS = {"amazon": "amazon", "walmart": "walmart",
                  "target": "target", "bestbuy": "best_buy"}
-AVAILABILITY = {"InStock": "in_stock", "OnlineOnly": "in_stock",
-                "InStoreOnly": "in_stock", "OutOfStock": "out_of_stock",
+AVAILABILITY = {"InStock": "in_stock", "OutOfStock": "out_of_stock",
                 "SoldOut": "out_of_stock", "Discontinued": "out_of_stock"}
 
 
@@ -19,7 +18,9 @@ def listing_from_product(product):
         "scraped_at": product.observed_at.isoformat(),
         "raw": {
             "title": product.title,
-            "price": str(product.price),
+            "description": product.description,
+            "shipping_cost": str(product.shipping_cost) if product.shipping_cost is not None else None,
+            "price": str(product.price) if product.price is not None else None,
             "currency": product.currency,
             "brand": product.brand,
             "model": product.model,

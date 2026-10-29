@@ -25,7 +25,8 @@ def main(argv=None):
     inputs.add_argument("--url", action="append", help="One product URL; repeat to process several")
     inputs.add_argument("--urls", help="URL file relative to scraper/ (default: urls.txt)")
     parser.add_argument("--stage", choices=["fetch", "extract", "validate"], default="validate")
-    parser.add_argument("--browser", action="store_true", help="Optional background Chrome rendering")
+    parser.add_argument("--browser", action="store_true", help="Optional Chromium rendering")
+    parser.add_argument("--headed", action="store_true", help="Show Chromium; requires --browser")
     parser.add_argument("--manual", action="store_true", help="Enter a human-verified real observation instead of fetching HTML; requires one --url")
     parser.add_argument("--html", help="Local public HTML path relative to scraper/, for one --url only")
     parser.add_argument("--keep-html", action="store_true", help="Archive public HTML in scraper/data/pages/")
@@ -34,6 +35,8 @@ def main(argv=None):
     parser.add_argument("--limit", type=int, help="Maximum validated records/write attempts; rejections do not consume the limit")
     parser.add_argument("--output", type=Path, help="Write accepted records to a local schema_version 1 JSON file")
     args = parser.parse_args(argv)
+    if args.headed and not args.browser:
+        parser.error("--headed requires --browser")
     if args.manual and (args.check_db or args.html or args.browser or args.keep_html or args.stage != "validate" or not args.url or len(args.url) != 1):
         parser.error("--manual requires exactly one --url and cannot use browser/HTML/checkpoint flags")
     if args.limit is not None and args.limit < 1:
@@ -87,7 +90,7 @@ def main(argv=None):
                 html = config.script_path(args.html).read_text(encoding="utf-8")
                 print("LOCAL HTML: rehearsal only; observed_at is parsing time, not a live price check.")
             elif args.browser:
-                html = scraper.fetch_rendered_page(url)
+                html = scraper.fetch_rendered_page(url, headless=not args.headed)
             else:
                 html = scraper.fetch_page(url)
             if not args.manual:

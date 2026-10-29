@@ -1,5 +1,17 @@
 # Shoppie
 
+## Local search dashboard and backend
+
+The Streamlit prototype, SBERT search, scraper reliability report, FastAPI endpoints,
+and Supabase integration are documented in [SETUP_MACOS.md](SETUP_MACOS.md).
+Demo mode uses labeled synthetic offers and requires no API keys after the model
+is cached. The existing MySQL and Supabase classroom paths remain available.
+
+For Gemini-grounded discovery, safe shared Supabase reads, access failures, and
+live collection commands, see [LIVE_DISCOVERY.md](LIVE_DISCOVERY.md) and
+[GEMINI_SUPABASE_REPORT.md](GEMINI_SUPABASE_REPORT.md). Fresh live offers are not
+yet verified; the existing two-retailer demonstration remains synthetic.
+
 ## Description
 
 Shoppie is an AI-powered smart shopping platform that collects product listings across retailers and turns them into a price-comparison experience. It uses semantic matching to identify equivalent products, tracks historical prices, and recommends whether users should buy now or wait.
