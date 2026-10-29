@@ -96,7 +96,13 @@ function useSmoothWheelScroll() {
 
     const onWheel = (event) => {
       if (motionPreference.matches || event.ctrlKey || event.metaKey) return
-      if (event.target instanceof Element && event.target.closest('textarea, select, input[type="number"], input[type="range"], [contenteditable="true"]')) return
+      if (event.target instanceof Element) {
+        if (event.target.closest('[data-scroll-lock]')) {
+          event.preventDefault()
+          return
+        }
+        if (event.target.closest('textarea, select, input[type="number"], input[type="range"], [contenteditable="true"]')) return
+      }
 
       const carousel = event.target instanceof Element ? event.target.closest('.scrollbar-hide') : null
       const isHorizontalGesture = event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)
@@ -137,19 +143,25 @@ function useSmoothWheelScroll() {
       if (frameId === null) frameId = window.requestAnimationFrame(animate)
     }
 
-    const resetScroll = () => {
+    const cancelSmoothScroll = () => {
       stopAnimation()
       stopHorizontalAnimation()
+    }
+
+    const resetScroll = () => {
+      cancelSmoothScroll()
       window.scrollTo({ top: 0, behavior: motionPreference.matches ? 'auto' : 'smooth' })
     }
 
     window.addEventListener('wheel', onWheel, { passive: false })
+    window.cancelSmoothScroll = cancelSmoothScroll
     window.resetScroll = resetScroll
 
     return () => {
       window.removeEventListener('wheel', onWheel)
       stopAnimation()
       stopHorizontalAnimation()
+      delete window.cancelSmoothScroll
       delete window.resetScroll
     }
   }, [])

@@ -57,7 +57,7 @@ function DealsSection() {
   }
 
   return (
-    <section className="relative z-10 px-6 pb-24 pt-12 text-white sm:px-10 sm:pb-32" aria-labelledby="discover-heading">
+    <section id="deals" className="relative z-10 scroll-mt-20 px-6 pb-24 pt-12 text-white sm:px-10 sm:pb-32" aria-labelledby="discover-heading">
       <div className="mx-auto max-w-7xl">
         <div className="mb-14 text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-blue-200/70">Curated for you</p>

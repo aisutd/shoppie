@@ -1,6 +1,6 @@
 function SearchSection() {
   return (
-    <section className="relative z-10 px-6 py-20 text-white sm:py-28" aria-labelledby="search-heading">
+    <section id="search" className="relative z-10 scroll-mt-20 px-6 py-20 text-white sm:py-28" aria-labelledby="search-heading">
       <div className="mx-auto flex max-w-3xl flex-col items-center text-center">
         <div className="mb-6 grid size-24 place-items-center rounded-full border-2 border-dashed border-blue-200/40 bg-blue-900/60 text-5xl shadow-[0_0_45px_rgba(96,165,250,0.15)]" role="img" aria-label="Placeholder mascot logo">
           🙂
