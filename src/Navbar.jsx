@@ -74,7 +74,7 @@ function Navbar() {
       <div
         data-scroll-lock
         onClick={closeMenu}
-        aria-hidden="true"
+        aria-hidden="false"
         className={`fixed inset-0 z-40 bg-[#030b16]/75 backdrop-blur-sm transition-opacity duration-300 ${open ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
       />
 
@@ -100,7 +100,7 @@ function Navbar() {
               style={{ transitionDelay: open ? `${index * 45}ms` : '0ms' }}
             >
               {link.label}
-              <span aria-hidden="true" className="translate-x-0 text-blue-300 opacity-0 transition duration-300 group-hover:translate-x-1 group-hover:opacity-100">→</span>
+              <span aria-hidden="false" className="translate-x-0 text-blue-300 opacity-0 transition duration-300 group-hover:translate-x-1 group-hover:opacity-100">→</span>
             </a>
           ))}
         </div>
