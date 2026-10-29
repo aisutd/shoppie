@@ -1,7 +1,7 @@
 """Checkpoint 3: turn untrusted strings into a validated Python record."""
 
 import re
-from datetime import datetime
+from datetime import datetime, timedelta,timezone
 from decimal import Decimal
 from typing import Literal
 
@@ -12,7 +12,19 @@ from scraper.scraper import clean_url, identify_product
 
 AVAILABILITY = {"InStock", "OutOfStock", "PreOrder", "PreSale", "BackOrder",
                 "LimitedAvailability", "SoldOut", "Discontinued", "OnlineOnly", "InStoreOnly"}
-
+AVAILABILITY_ALIASES = {
+    "instock": "InStock", "in stock": "InStock", "in_stock": "InStock",
+    "outofstock": "OutOfStock", "out of stock": "OutOfStock", "out_of_stock": "OutOfStock",
+    "preorder": "PreOrder", "pre-order": "PreOrder", "pre order": "PreOrder",
+    "presale": "PreSale", "pre-sale": "PreSale",
+    "backorder": "BackOrder", "back order": "BackOrder", "back-order": "BackOrder",
+    "limitedavailability": "LimitedAvailability", "limited availability": "LimitedAvailability",
+    "soldout": "SoldOut", "sold out": "SoldOut", "sold_out": "SoldOut",
+    "discontinued": "Discontinued",
+    "onlineonly": "OnlineOnly", "online only": "OnlineOnly",
+    "instoreonly": "InStoreOnly", "in store only": "InStoreOnly", "in-store only": "InStoreOnly",
+}
+FUTURE_TOLERANCE = timedelta(minutes=5)
 
 class Laptop(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
@@ -26,22 +38,16 @@ class Laptop(BaseModel):
     availability: str | None = None
     seller: str | None = Field(default=None, max_length=300)
     discount: None = None  # Not extracted in this lesson. Unknown is not zero.
-    description: str | None = None
-    shipping_cost: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2, allow_inf_nan=False)
-    brand: str | None = None
-    model: str | None = None
-    category: str | None = None
-    gtin: str | None = None
-    attributes: dict = Field(default_factory=dict)
     observed_at: datetime
     extraction_method: Literal["json-ld", "html", "manual"]
 
     @field_validator("title")
     @classmethod
     def laptop_title(cls, value):
-        if not re.search(r"\b(laptop|notebook|chromebook|macbook)\b", value, re.I):
+        if not re.search(r"\b(laptop|notebook|chromebook|macbook|thinkpad|thinkbook|ideapad|zenbook|vivobook)\b", value, re.I):
             raise ValueError("title must clearly describe a laptop")
-        if re.search(r"\b(adapter|charger|sleeve|case|bag|replacement|stand)\b", value, re.I):
+        if re.search(r"\b(adapter|charger|sleeve|case|bag|backpack|replacement|stand|battery|"
+                     r"docking|dock|cover|protector|skin|cooling)\b", value, re.I):
             raise ValueError("accessories are outside this lesson")
         return value
 
@@ -52,21 +58,23 @@ class Laptop(BaseModel):
             raise ValueError("price must be a number, not a boolean")
         return value
 
-    @field_validator("availability")
+    @field_validator("availability", mode="before")
     @classmethod
     def explicit_availability(cls, value):
-        if value is None:
-            return None
-        name = re.sub(r"^https?://schema\.org/", "", value)
-        if name not in AVAILABILITY:
-            raise ValueError("unrecognized availability; do not guess")
-        return name
+        if not isinstance(value, str): return None
+        name = re.sub(r"^https?://schema\.org/", "", value.strip(), flags=re.I)
+        if name in AVAILABILITY: 
+            return name
+        return AVAILABILITY_ALIASES.get(name.lower())
+        
 
     @field_validator("observed_at")
     @classmethod
     def timezone_required(cls, value):
         if value.tzinfo is None:
             raise ValueError("observation time needs a timezone")
+        if value > datetime.now(timezone.utc) + FUTURE_TOLERANCE:
+            raise ValueError("observation time cannot be in the future")
         return value
 
     @model_validator(mode="after")
@@ -76,21 +84,8 @@ class Laptop(BaseModel):
         return self
 
 
-class UnavailableLaptop(Laptop):
-    price: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=2, allow_inf_nan=False)
-    currency: Literal["USD"] | None = None
-
-    @model_validator(mode="after")
-    def explicitly_unavailable(self):
-        if self.availability not in {"OutOfStock", "SoldOut", "Discontinued"}:
-            raise ValueError("a missing price is allowed only for an explicitly unavailable observation")
-        return self
-
-
-def validate_record(record, allow_unavailable=False):
+def validate_record(record):
     """Clean formatting on a copy, then apply the required-field rules."""
-    if not isinstance(record, dict):
-        raise ValueError("product record must be an object")
     cleaned = dict(record)
     for name, value in cleaned.items():
         if isinstance(value, str):
@@ -108,9 +103,5 @@ def validate_record(record, allow_unavailable=False):
         cleaned["seller"] = None
     if isinstance(cleaned.get("product_url"), str):
         cleaned["product_url"] = clean_url(cleaned["product_url"])
-    availability = cleaned.get("availability")
-    availability = re.sub(r"^https?://schema\.org/", "", availability) if isinstance(availability, str) else None
-    if allow_unavailable and cleaned.get("price") is None and availability in {"OutOfStock", "SoldOut", "Discontinued"}:
-        return UnavailableLaptop.model_validate(cleaned)
     return Laptop.model_validate(cleaned)
 

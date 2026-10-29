@@ -10,8 +10,3 @@ __pycache__/
 .pytest_cache/
 # Downloaded public pages and lesson output
 data/
-
-# local AI environment and generated caches
-.venv-ai/
-scraper/venv/
-.local/

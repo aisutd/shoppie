@@ -15,8 +15,6 @@ from pydantic import ValidationError
 
 from scraper import config, scraper
 from scraper.validator import validate_record
-from scraper.envelope import listing_from_product, make_envelope
-from db.normalize import normalize
 
 
 def main(argv=None):
@@ -25,24 +23,20 @@ def main(argv=None):
     inputs.add_argument("--url", action="append", help="One product URL; repeat to process several")
     inputs.add_argument("--urls", help="URL file relative to scraper/ (default: urls.txt)")
     parser.add_argument("--stage", choices=["fetch", "extract", "validate"], default="validate")
-    parser.add_argument("--browser", action="store_true", help="Optional Chromium rendering")
-    parser.add_argument("--headed", action="store_true", help="Show Chromium; requires --browser")
+    parser.add_argument("--browser", action="store_true", help="Optional background Chrome rendering")
     parser.add_argument("--manual", action="store_true", help="Enter a human-verified real observation instead of fetching HTML; requires one --url")
     parser.add_argument("--html", help="Local public HTML path relative to scraper/, for one --url only")
     parser.add_argument("--keep-html", action="store_true", help="Archive public HTML in scraper/data/pages/")
     parser.add_argument("--save", action="store_true", help="Use instructor backend credentials to upsert accepted live records")
     parser.add_argument("--check-db", action="store_true", help="Read-only connectivity check of the configured products table")
     parser.add_argument("--limit", type=int, help="Maximum validated records/write attempts; rejections do not consume the limit")
-    parser.add_argument("--output", type=Path, help="Write accepted records to a local schema_version 1 JSON file")
     args = parser.parse_args(argv)
-    if args.headed and not args.browser:
-        parser.error("--headed requires --browser")
     if args.manual and (args.check_db or args.html or args.browser or args.keep_html or args.stage != "validate" or not args.url or len(args.url) != 1):
         parser.error("--manual requires exactly one --url and cannot use browser/HTML/checkpoint flags")
     if args.limit is not None and args.limit < 1:
         parser.error("--limit must be a positive integer")
     if args.check_db:
-        if args.save or args.output or args.url or args.urls or args.html or args.browser or args.keep_html or args.limit is not None or args.stage != "validate":
+        if args.save or args.url or args.urls or args.html or args.browser or args.keep_html or args.limit is not None or args.stage != "validate":
             parser.error("--check-db runs alone; it cannot be combined with scraping or saving flags")
         try:
             from scraper.database import check_database, connect
@@ -55,8 +49,6 @@ def main(argv=None):
         return 0
     if args.save and (args.stage != "validate" or args.html):
         parser.error("--save requires live pages and --stage validate (the default)")
-    if args.output and args.stage != "validate":
-        parser.error("--output requires --stage validate")
     if args.html and (args.browser or not args.url or len(args.url) != 1):
         parser.error("--html requires exactly one --url and cannot be combined with --browser")
     try:
@@ -72,7 +64,6 @@ def main(argv=None):
     counts = {"fetched": 0, "extracted": 0, "validated": 0, "rejected": 0, "saved": 0, "failed_saves": 0}
     database = None
     saving_unavailable = False
-    accepted = []
     for index, source_url in enumerate(urls, start=1):
         completed = counts[{"fetch": "fetched", "extract": "extracted", "validate": "validated"}[args.stage]]
         if args.limit is not None and completed >= args.limit:
@@ -90,7 +81,7 @@ def main(argv=None):
                 html = config.script_path(args.html).read_text(encoding="utf-8")
                 print("LOCAL HTML: rehearsal only; observed_at is parsing time, not a live price check.")
             elif args.browser:
-                html = scraper.fetch_rendered_page(url, headless=not args.headed)
+                html = scraper.fetch_rendered_page(url)
             else:
                 html = scraper.fetch_page(url)
             if not args.manual:
@@ -116,9 +107,6 @@ def main(argv=None):
                 print("Candidate is unvalidated.")
                 continue
             product = validate_record(candidate)
-            # check the shared database contract before writing the JSON envelope.
-            normalize(listing_from_product(product))
-            accepted.append(product)
             counts["validated"] += 1
             print(product.model_dump_json(indent=2))
             print("ACCEPTED")
@@ -163,13 +151,6 @@ def main(argv=None):
                 saving_unavailable = database is None
                 print("SAVE FAILED:", error)
 
-    if args.output:
-        try:
-            args.output.write_text(json.dumps(make_envelope(accepted), indent=2) + "\n", encoding="utf-8")
-            print(f"Wrote {len(accepted)} validated listing(s) to {args.output}.")
-        except OSError:
-            print("OUTPUT FAILED: Could not write the local JSON file.")
-            return 1
     print("\nResults:", ", ".join(f"{name}={count}" for name, count in counts.items()))
     if not args.save:
         print("Extraction only. No Supabase settings read, connections opened or database writes.")
