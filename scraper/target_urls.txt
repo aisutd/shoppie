@@ -1,0 +1,3 @@
+# Target-only lesson inputs. Original four-retailer urls.txt is preserved.
+# Verify the exact selected variant and source fields before class.
+https://www.target.com/p/apple-macbook-neo-a18-pro-2026-laptop-with-touch-id-512gb-citrus/-/A-91122087
