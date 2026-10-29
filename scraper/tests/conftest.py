@@ -29,3 +29,12 @@ def offline_without_real_credentials(monkeypatch):
         return parse_dotenv(path, *args, **kwargs)
 
     monkeypatch.setattr(config, "dotenv_values", temporary_dotenv_only)
+
+
+@pytest.fixture(autouse=True)
+def reset_request_pacing(monkeypatch):
+    from scraper import scraper
+    scraper.reset_fetch_state()
+    monkeypatch.setattr(scraper, 'MIN_SECONDS_BETWEEN_REQUESTS', 0)
+    yield
+    scraper.reset_fetch_state()

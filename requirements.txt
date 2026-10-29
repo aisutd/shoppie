@@ -1,3 +1,4 @@
+# full dashboard and AI environment: requirements-ai.lock.txt
 pydantic>=2,<3
 pytest>=8,<9
 requests>=2.32,<3
@@ -5,3 +6,5 @@ beautifulsoup4>=4.12,<5
 
 # Use the verified exact versions while retaining the original dependency intent.
 -r scraper/requirements.txt
+
+mysql-connector-python>=9,<10

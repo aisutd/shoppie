@@ -1,0 +1,201 @@
+{
+  "provenance": "Synthetic teaching fixtures manually labeled from their explicit JSON-LD. No real retailer offers or live prices.",
+  "observed_at": "2026-10-28T12:00:00+00:00",
+  "pages": [
+    {
+      "id": "fixture-1",
+      "url": "https://www.bestbuy.com/product/synthetic-macbook-air/SYNTH001",
+      "file": "01_bestbuy.html",
+      "expected": {
+        "title": "Apple MacBook Air Laptop Apple M5 16GB RAM 512GB SSD",
+        "brand": "Apple",
+        "model": "MBA-M5-13",
+        "price": "999.00",
+        "currency": "USD",
+        "attributes.storage_gb": 512,
+        "attributes.cpu": "Apple M5",
+        "attributes.ram_gb": 16,
+        "category": "laptop",
+        "description": "Synthetic classroom laptop with Apple M5. No live price claim.",
+        "availability": "https://schema.org/InStock",
+        "attributes.color": "Blue",
+        "shipping_cost": "0.00"
+      },
+      "catalog": true
+    },
+    {
+      "id": "fixture-2",
+      "url": "https://www.target.com/p/synthetic-macbook-air/-/A-90000001",
+      "file": "02_target.html",
+      "expected": {
+        "title": "Apple MacBook Air Laptop Apple M5 16GB RAM 512GB SSD",
+        "brand": "Apple",
+        "model": "MBA-M5-13",
+        "price": "1049.00",
+        "currency": "USD",
+        "attributes.storage_gb": 512,
+        "attributes.cpu": "Apple M5",
+        "attributes.ram_gb": 16,
+        "category": "laptop",
+        "description": "Synthetic classroom laptop with Apple M5. No live price claim.",
+        "availability": "https://schema.org/InStock",
+        "attributes.color": "Blue",
+        "shipping_cost": "0.00"
+      },
+      "catalog": true
+    },
+    {
+      "id": "fixture-3",
+      "url": "https://www.walmart.com/ip/synthetic-macbook-air/90000002",
+      "file": "03_walmart.html",
+      "expected": {
+        "title": "Apple MacBook Air Laptop Apple M5 16GB RAM 256GB SSD",
+        "brand": "Apple",
+        "model": "MBA-M5-13",
+        "price": "749.00",
+        "currency": "USD",
+        "attributes.storage_gb": 256,
+        "attributes.cpu": "Apple M5",
+        "attributes.ram_gb": 16,
+        "category": "laptop",
+        "description": "Synthetic classroom laptop with Apple M5. No live price claim.",
+        "availability": "https://schema.org/InStock",
+        "attributes.color": "Blue",
+        "shipping_cost": "0.00"
+      },
+      "catalog": true
+    },
+    {
+      "id": "fixture-4",
+      "url": "https://www.amazon.com/dp/B0DEMO0001",
+      "file": "04_amazon.html",
+      "expected": {
+        "title": "Apple MacBook Air Laptop Apple M5 8GB RAM 512GB SSD",
+        "brand": "Apple",
+        "model": "MBA-M5-13",
+        "price": "799.00",
+        "currency": "USD",
+        "attributes.storage_gb": 512,
+        "attributes.cpu": "Apple M5",
+        "attributes.ram_gb": 8,
+        "category": "laptop",
+        "description": "Synthetic classroom laptop with Apple M5. No live price claim.",
+        "availability": "https://schema.org/InStock",
+        "attributes.color": "Blue",
+        "shipping_cost": "0.00"
+      },
+      "catalog": true
+    },
+    {
+      "id": "fixture-5",
+      "url": "https://www.bestbuy.com/product/synthetic-macbook-air/SYNTH002",
+      "file": "05_bestbuy.html",
+      "expected": {
+        "title": "Apple MacBook Air Laptop Apple M4 16GB RAM 512GB SSD",
+        "brand": "Apple",
+        "model": "MBA-M4-13",
+        "price": "899.00",
+        "currency": "USD",
+        "attributes.storage_gb": 512,
+        "attributes.cpu": "Apple M4",
+        "attributes.ram_gb": 16,
+        "category": "laptop",
+        "description": "Synthetic classroom laptop with Apple M4. No live price claim.",
+        "availability": "https://schema.org/InStock",
+        "attributes.color": "Blue",
+        "shipping_cost": "0.00"
+      },
+      "catalog": true
+    },
+    {
+      "id": "fixture-6",
+      "url": "https://www.target.com/p/synthetic-macbook-air/-/A-90000003",
+      "file": "06_target.html",
+      "expected": {
+        "title": "Apple MacBook Air Laptop Apple M5 512GB SSD",
+        "brand": "Apple",
+        "model": "MBA-M5-13",
+        "price": "949.00",
+        "currency": "USD",
+        "attributes.storage_gb": 512,
+        "attributes.cpu": "Apple M5",
+        "attributes.ram_gb": 16,
+        "category": "laptop",
+        "description": "Synthetic classroom laptop with Apple M5. No live price claim.",
+        "availability": "https://schema.org/InStock",
+        "attributes.color": "Blue",
+        "shipping_cost": "0.00"
+      },
+      "catalog": true
+    },
+    {
+      "id": "fixture-7",
+      "url": "https://www.walmart.com/ip/synthetic-lenovo/90000004",
+      "file": "07_walmart.html",
+      "expected": {
+        "title": "Lenovo IdeaPad Laptop AMD Ryzen 7 7730U 16GB RAM 512GB SSD",
+        "brand": "Lenovo",
+        "model": "LEN-14",
+        "price": "849.00",
+        "currency": "USD",
+        "attributes.storage_gb": 512,
+        "attributes.cpu": "AMD Ryzen 7 7730U",
+        "attributes.ram_gb": 16,
+        "category": "laptop",
+        "description": "Synthetic classroom laptop with AMD Ryzen 7 7730U. No live price claim.",
+        "availability": "https://schema.org/InStock",
+        "attributes.color": "Blue",
+        "shipping_cost": "0.00"
+      },
+      "catalog": true
+    },
+    {
+      "id": "fixture-8",
+      "url": "https://www.amazon.com/dp/B0DEMO0002",
+      "file": "08_amazon.html",
+      "expected": {
+        "title": "Apple MacBook Air Laptop Apple M5 16GB RAM 512GB SSD",
+        "brand": "Apple",
+        "model": "MBA-M5-13",
+        "price": null,
+        "currency": null,
+        "attributes.storage_gb": 512,
+        "attributes.cpu": "Apple M5",
+        "attributes.ram_gb": 16,
+        "category": "laptop",
+        "description": "Synthetic classroom laptop with Apple M5. No live price claim.",
+        "availability": "https://schema.org/InStock",
+        "attributes.color": "Blue"
+      },
+      "catalog": false
+    },
+    {
+      "id": "fixture-9",
+      "url": "https://www.bestbuy.com/product/synthetic-price-error/SYNTH003",
+      "file": "09_bestbuy.html",
+      "expected": {
+        "title": "Apple MacBook Air Laptop Apple M5 16GB RAM 512GB SSD",
+        "brand": "Apple",
+        "model": "MBA-M5-13",
+        "price": "1099.00",
+        "currency": "USD",
+        "attributes.storage_gb": 512,
+        "attributes.cpu": "Apple M5",
+        "attributes.ram_gb": 16,
+        "category": "laptop",
+        "description": "Synthetic classroom laptop with Apple M5. No live price claim.",
+        "availability": "https://schema.org/InStock",
+        "attributes.color": "Blue",
+        "shipping_cost": "0.00"
+      },
+      "catalog": false
+    },
+    {
+      "id": "blocked",
+      "url": "https://www.amazon.com/dp/B0DEMO0003",
+      "file": "blocked.html",
+      "expected": {},
+      "catalog": false
+    }
+  ]
+}

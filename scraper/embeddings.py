@@ -1,20 +1,13 @@
-from sentence_transformers import SentenceTransformer
+"""Compatibility entry point using Shoppie's cached, normalized MiniLM model."""
 
-# Initialize the lightweight, high-performance SBERT model
-model = SentenceTransformer('all-MiniLM-L6-v2')
+from db.embeddings import build_text, generate_embedding, load_model
 
-def generate_product_embedding(product: dict) -> list:
-    """
-    Combines key product fields into a single text representation and generates
-    a 384-dimensional vector using sentence-transformers.
-    """
-    title = product.get('title', '')
-    brand = product.get('brand', '')
-    category = product.get('category', '')
-    description = product.get('description', '')
 
-    combined_text = f"Title: {title} | Brand: {brand} | Category: {category} | Description: {description}"
-    
-    # Encode text into a float list vector
-    embedding = model.encode(combined_text)
-    return embedding.tolist()
+def generate_product_embedding(product, model=None):
+    # accepts scraper records and normalized backend listings without a second model
+    listing = dict(product)
+    listing['model_number'] = listing.get('model_number') or listing.get('model')
+    text = build_text(listing)
+    if not text:
+        raise ValueError('Product identity text is missing')
+    return generate_embedding(model or load_model(), text)

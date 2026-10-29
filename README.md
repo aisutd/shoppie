@@ -1,3 +1,5 @@
+Current combined backend/dashboard setup and verified integration results: [INTEGRATION_RISHI_TRISHA.md](INTEGRATION_RISHI_TRISHA.md).
+
 # Shoppie
 
 ## Description
