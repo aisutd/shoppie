@@ -1,0 +1,1330 @@
+[
+  {
+    "url": "https://www.walmart.com/ip/Apple-14-inch-MacBook-Pro-with-M5-chip-chip-with-10-core-CPU-and-10-core-GPU-24GB-1TB-SSD-Space-Black/18156070263",
+    "retailer": "walmart",
+    "product_key": "walmart:18156070263",
+    "benchmark_started_at": "2026-10-29T01:42:30.927481+00:00",
+    "duplicate_of": null,
+    "attempts": [
+      {
+        "mode": "http",
+        "command": [
+          "C:\\Users\\there\\OneDrive\\Desktop\\Shoppie F26 Files\\shoppie\\.venv\\Scripts\\python.exe",
+          "-X",
+          "utf8",
+          "-u",
+          "-m",
+          "scraper.main",
+          "--url",
+          "https://www.walmart.com/ip/Apple-14-inch-MacBook-Pro-with-M5-chip-chip-with-10-core-CPU-and-10-core-GPU-24GB-1TB-SSD-Space-Black/18156070263",
+          "--http-only",
+          "--keep-html"
+        ],
+        "return_code": 1,
+        "timed_out": false,
+        "stdout": "\nPage 1/1\nwalmart: 18156070263\nATTEMPT: {\"mode\": \"http\", \"fetched\": 0, \"extracted\": 0, \"validated\": 0, \"fallback\": false, \"failure_stage\": \"fetch\", \"failure_category\": \"challenge_or_access_denied\", \"failure_detail\": \"Retailer redirected to a verification/checkpoint page. Stop here.\"}\nDIAGNOSTIC: {\"failure_stage\": \"fetch\", \"failure_category\": \"challenge_or_access_denied\", \"failure_detail\": \"Retailer redirected to a verification/checkpoint page. Stop here.\", \"fallback_allowed\": false}\nREJECTED: Retailer redirected to a verification/checkpoint page. Stop here.\n\nResults: fetched=0, extracted=0, validated=0, rejected=1, saved=0, failed_saves=0\nExtraction only. No Supabase settings read, connections opened or database writes.\n",
+        "stderr": "",
+        "produced_valid_record": false,
+        "record": null,
+        "fetch_status": "failed",
+        "extraction_status": "not_reached",
+        "validation_status": "not_reached",
+        "failure_stage": "fetch",
+        "failure_category": "challenge_or_access_denied",
+        "failure_detail": "Retailer redirected to a verification/checkpoint page. Stop here.",
+        "fallback_allowed": false,
+        "stage_events": [
+          {
+            "mode": "http",
+            "fetched": 0,
+            "extracted": 0,
+            "validated": 0,
+            "fallback": false,
+            "failure_stage": "fetch",
+            "failure_category": "challenge_or_access_denied",
+            "failure_detail": "Retailer redirected to a verification/checkpoint page. Stop here."
+          }
+        ],
+        "counters": {
+          "fetched": 0,
+          "extracted": 0,
+          "validated": 0,
+          "rejected": 1,
+          "saved": 0,
+          "failed_saves": 0
+        },
+        "diagnostics": [
+          {
+            "failure_stage": "fetch",
+            "failure_category": "challenge_or_access_denied",
+            "failure_detail": "Retailer redirected to a verification/checkpoint page. Stop here.",
+            "fallback_allowed": false
+          }
+        ]
+      }
+    ],
+    "scraper_result": "rejected",
+    "observed": {
+      "title": null,
+      "price": null,
+      "currency": null,
+      "availability": null,
+      "product_id": null
+    },
+    "expected": {
+      "should_accept": null,
+      "title": null,
+      "price": null,
+      "currency": null,
+      "availability": null
+    },
+    "notes": "",
+    "needs_review": true,
+    "review_status": null,
+    "should_accept": null,
+    "reviewed_fields": [],
+    "reviewed_case": {
+      "url": "https://www.walmart.com/ip/Apple-14-inch-MacBook-Pro-with-M5-chip-chip-with-10-core-CPU-and-10-core-GPU-24GB-1TB-SSD-Space-Black/18156070263",
+      "retailer": "walmart",
+      "product_key": "walmart:18156070263",
+      "duplicate_of": null,
+      "scraper_result": "rejected",
+      "observed": {
+        "title": null,
+        "price": null,
+        "currency": null,
+        "availability": null,
+        "product_id": null
+      },
+      "failure_reason": null,
+      "expected": {
+        "should_accept": null,
+        "title": null,
+        "price": null,
+        "currency": null,
+        "availability": null
+      },
+      "needs_review": true,
+      "notes": ""
+    },
+    "browser_attempt_status": "not_run_terminal_http_failure",
+    "fetch_status": "failed",
+    "extraction_status": "not_reached",
+    "validation_status": "not_reached",
+    "failure_stage": "fetch",
+    "failure_category": "challenge_or_access_denied",
+    "failure_detail": "Retailer redirected to a verification/checkpoint page. Stop here."
+  },
+  {
+    "url": "https://www.amazon.com/dp/B0GR1493ZV",
+    "retailer": "amazon",
+    "product_key": "amazon:B0GR1493ZV",
+    "benchmark_started_at": "2026-10-29T01:42:30.927481+00:00",
+    "duplicate_of": null,
+    "attempts": [
+      {
+        "mode": "http",
+        "command": [
+          "C:\\Users\\there\\OneDrive\\Desktop\\Shoppie F26 Files\\shoppie\\.venv\\Scripts\\python.exe",
+          "-X",
+          "utf8",
+          "-u",
+          "-m",
+          "scraper.main",
+          "--url",
+          "https://www.amazon.com/dp/B0GR1493ZV",
+          "--http-only",
+          "--keep-html"
+        ],
+        "return_code": 1,
+        "timed_out": false,
+        "stdout": "\nPage 1/1\namazon: B0GR1493ZV\nATTEMPT: {\"mode\": \"http\", \"fetched\": 1, \"extracted\": 1, \"validated\": 0, \"fallback\": false, \"failure_stage\": \"validation\", \"failure_category\": \"validation_failed\", \"failure_detail\": \"Required product fields failed validation.\"}\nArchived in scraper/data/pages/amazon-B0GR1493ZV.html\nDIAGNOSTIC: {\"failure_stage\": \"validation\", \"failure_category\": \"validation_failed\", \"failure_detail\": \"Required product fields failed validation.\", \"fallback_allowed\": true}\nREJECTED: required fields failed validation; no database write.\n - title: not found in the retrieved product data\n - price: not found in the retrieved product data\n - currency: not found in the retrieved product data\n\nResults: fetched=1, extracted=1, validated=0, rejected=1, saved=0, failed_saves=0\nExtraction only. No Supabase settings read, connections opened or database writes.\n",
+        "stderr": "",
+        "produced_valid_record": false,
+        "record": null,
+        "fetch_status": "succeeded",
+        "extraction_status": "succeeded",
+        "validation_status": "failed",
+        "failure_stage": "validation",
+        "failure_category": "validation_failed",
+        "failure_detail": "Required product fields failed validation.",
+        "fallback_allowed": true,
+        "stage_events": [
+          {
+            "mode": "http",
+            "fetched": 1,
+            "extracted": 1,
+            "validated": 0,
+            "fallback": false,
+            "failure_stage": "validation",
+            "failure_category": "validation_failed",
+            "failure_detail": "Required product fields failed validation."
+          }
+        ],
+        "counters": {
+          "fetched": 1,
+          "extracted": 1,
+          "validated": 0,
+          "rejected": 1,
+          "saved": 0,
+          "failed_saves": 0
+        },
+        "diagnostics": [
+          {
+            "failure_stage": "validation",
+            "failure_category": "validation_failed",
+            "failure_detail": "Required product fields failed validation.",
+            "fallback_allowed": true
+          }
+        ]
+      },
+      {
+        "mode": "browser",
+        "command": [
+          "C:\\Users\\there\\OneDrive\\Desktop\\Shoppie F26 Files\\shoppie\\.venv\\Scripts\\python.exe",
+          "-X",
+          "utf8",
+          "-u",
+          "-m",
+          "scraper.main",
+          "--url",
+          "https://www.amazon.com/dp/B0GR1493ZV",
+          "--browser",
+          "--keep-html"
+        ],
+        "return_code": 0,
+        "timed_out": false,
+        "stdout": "\nPage 1/1\namazon: B0GR1493ZV\nATTEMPT: {\"mode\": \"browser\", \"fetched\": 1, \"extracted\": 1, \"validated\": 1, \"fallback\": false, \"navigation\": {\"requested_url\": \"https://www.amazon.com/dp/B0GR1493ZV\", \"final_url\": \"https://www.amazon.com/dp/B0GR1493ZV\", \"status\": 200, \"navigation_retries\": 0}}\nArchived in scraper/data/pages/amazon-B0GR1493ZV.html\n{\n  \"retailer\": \"amazon\",\n  \"product_id\": \"B0GR1493ZV\",\n  \"product_url\": \"https://www.amazon.com/dp/B0GR1493ZV\",\n  \"title\": \"Apple 2026 MacBook Air 13-inch Laptop with M5 chip: Built for AI, 13.6-inch Liquid Retina Display, 16GB Unified Memory, 512GB SSD, 12MP Center Stage Camera, Touch ID, Wi-Fi 7; Sky Blue\",\n  \"price\": \"1149.00\",\n  \"currency\": \"USD\",\n  \"availability\": \"InStock\",\n  \"seller\": null,\n  \"discount\": null,\n  \"observed_at\": \"2026-10-29T01:42:44.705873Z\",\n  \"extraction_method\": \"html\",\n  \"brand\": \"Apple\",\n  \"model\": \"MDHH4LL/A\",\n  \"cpu\": \"Unknown\",\n  \"ram\": \"16 GB\",\n  \"storage\": \"512 GB\",\n  \"screen_size\": \"13.6 inches\",\n  \"color\": \"Sky Blue\",\n  \"condition\": null\n}\nACCEPTED\n\nResults: fetched=1, extracted=1, validated=1, rejected=0, saved=0, failed_saves=0\nExtraction only. No Supabase settings read, connections opened or database writes.\n",
+        "stderr": "",
+        "produced_valid_record": true,
+        "record": {
+          "retailer": "amazon",
+          "product_id": "B0GR1493ZV",
+          "product_url": "https://www.amazon.com/dp/B0GR1493ZV",
+          "title": "Apple 2026 MacBook Air 13-inch Laptop with M5 chip: Built for AI, 13.6-inch Liquid Retina Display, 16GB Unified Memory, 512GB SSD, 12MP Center Stage Camera, Touch ID, Wi-Fi 7; Sky Blue",
+          "price": "1149.00",
+          "currency": "USD",
+          "availability": "InStock",
+          "seller": null,
+          "discount": null,
+          "observed_at": "2026-10-29T01:42:44.705873Z",
+          "extraction_method": "html",
+          "brand": "Apple",
+          "model": "MDHH4LL/A",
+          "cpu": "Unknown",
+          "ram": "16 GB",
+          "storage": "512 GB",
+          "screen_size": "13.6 inches",
+          "color": "Sky Blue",
+          "condition": null
+        },
+        "fetch_status": "succeeded",
+        "extraction_status": "succeeded",
+        "validation_status": "succeeded",
+        "failure_stage": null,
+        "failure_category": null,
+        "failure_detail": null,
+        "fallback_allowed": false,
+        "stage_events": [
+          {
+            "mode": "browser",
+            "fetched": 1,
+            "extracted": 1,
+            "validated": 1,
+            "fallback": false,
+            "navigation": {
+              "requested_url": "https://www.amazon.com/dp/B0GR1493ZV",
+              "final_url": "https://www.amazon.com/dp/B0GR1493ZV",
+              "status": 200,
+              "navigation_retries": 0
+            }
+          }
+        ],
+        "counters": {
+          "fetched": 1,
+          "extracted": 1,
+          "validated": 1,
+          "rejected": 0,
+          "saved": 0,
+          "failed_saves": 0
+        },
+        "diagnostics": []
+      }
+    ],
+    "scraper_result": "accepted",
+    "observed": {
+      "title": "Apple 2026 MacBook Air 13-inch Laptop with M5 chip: Built for AI, 13.6-inch Liquid Retina Display, 16GB Unified Memory, 512GB SSD, 12MP Center Stage Camera, Touch ID, Wi-Fi 7; Sky Blue",
+      "price": "1149.00",
+      "currency": "USD",
+      "availability": "InStock",
+      "product_id": "B0GR1493ZV"
+    },
+    "expected": {
+      "should_accept": null,
+      "title": null,
+      "price": null,
+      "currency": null,
+      "availability": null
+    },
+    "notes": "",
+    "needs_review": true,
+    "review_status": null,
+    "should_accept": null,
+    "reviewed_fields": [],
+    "reviewed_case": {
+      "url": "https://www.amazon.com/dp/B0GR1493ZV",
+      "retailer": "amazon",
+      "product_key": "amazon:B0GR1493ZV",
+      "duplicate_of": null,
+      "scraper_result": "rejected",
+      "observed": {
+        "title": null,
+        "price": null,
+        "currency": null,
+        "availability": null,
+        "product_id": null
+      },
+      "failure_reason": null,
+      "expected": {
+        "should_accept": null,
+        "title": null,
+        "price": null,
+        "currency": null,
+        "availability": null
+      },
+      "needs_review": true,
+      "notes": ""
+    },
+    "browser_attempt_status": "completed",
+    "fetch_status": "succeeded",
+    "extraction_status": "succeeded",
+    "validation_status": "succeeded",
+    "failure_stage": null,
+    "failure_category": null,
+    "failure_detail": null
+  },
+  {
+    "url": "https://www.amazon.com/dp/B0GR6935ZS",
+    "retailer": "amazon",
+    "product_key": "amazon:B0GR6935ZS",
+    "benchmark_started_at": "2026-10-29T01:42:30.927481+00:00",
+    "duplicate_of": null,
+    "attempts": [
+      {
+        "mode": "http",
+        "command": [
+          "C:\\Users\\there\\OneDrive\\Desktop\\Shoppie F26 Files\\shoppie\\.venv\\Scripts\\python.exe",
+          "-X",
+          "utf8",
+          "-u",
+          "-m",
+          "scraper.main",
+          "--url",
+          "https://www.amazon.com/dp/B0GR6935ZS",
+          "--http-only",
+          "--keep-html"
+        ],
+        "return_code": 1,
+        "timed_out": false,
+        "stdout": "\nPage 1/1\namazon: B0GR6935ZS\nATTEMPT: {\"mode\": \"http\", \"fetched\": 1, \"extracted\": 1, \"validated\": 0, \"fallback\": false, \"failure_stage\": \"validation\", \"failure_category\": \"validation_failed\", \"failure_detail\": \"Required product fields failed validation.\"}\nArchived in scraper/data/pages/amazon-B0GR6935ZS.html\nDIAGNOSTIC: {\"failure_stage\": \"validation\", \"failure_category\": \"validation_failed\", \"failure_detail\": \"Required product fields failed validation.\", \"fallback_allowed\": true}\nREJECTED: required fields failed validation; no database write.\n - title: not found in the retrieved product data\n - price: not found in the retrieved product data\n - currency: not found in the retrieved product data\n\nResults: fetched=1, extracted=1, validated=0, rejected=1, saved=0, failed_saves=0\nExtraction only. No Supabase settings read, connections opened or database writes.\n",
+        "stderr": "",
+        "produced_valid_record": false,
+        "record": null,
+        "fetch_status": "succeeded",
+        "extraction_status": "succeeded",
+        "validation_status": "failed",
+        "failure_stage": "validation",
+        "failure_category": "validation_failed",
+        "failure_detail": "Required product fields failed validation.",
+        "fallback_allowed": true,
+        "stage_events": [
+          {
+            "mode": "http",
+            "fetched": 1,
+            "extracted": 1,
+            "validated": 0,
+            "fallback": false,
+            "failure_stage": "validation",
+            "failure_category": "validation_failed",
+            "failure_detail": "Required product fields failed validation."
+          }
+        ],
+        "counters": {
+          "fetched": 1,
+          "extracted": 1,
+          "validated": 0,
+          "rejected": 1,
+          "saved": 0,
+          "failed_saves": 0
+        },
+        "diagnostics": [
+          {
+            "failure_stage": "validation",
+            "failure_category": "validation_failed",
+            "failure_detail": "Required product fields failed validation.",
+            "fallback_allowed": true
+          }
+        ]
+      },
+      {
+        "mode": "browser",
+        "command": [
+          "C:\\Users\\there\\OneDrive\\Desktop\\Shoppie F26 Files\\shoppie\\.venv\\Scripts\\python.exe",
+          "-X",
+          "utf8",
+          "-u",
+          "-m",
+          "scraper.main",
+          "--url",
+          "https://www.amazon.com/dp/B0GR6935ZS",
+          "--browser",
+          "--keep-html"
+        ],
+        "return_code": 0,
+        "timed_out": false,
+        "stdout": "\nPage 1/1\namazon: B0GR6935ZS\nATTEMPT: {\"mode\": \"browser\", \"fetched\": 1, \"extracted\": 1, \"validated\": 1, \"fallback\": false, \"navigation\": {\"requested_url\": \"https://www.amazon.com/dp/B0GR6935ZS\", \"final_url\": \"https://www.amazon.com/dp/B0GR6935ZS\", \"status\": 200, \"navigation_retries\": 0}}\nArchived in scraper/data/pages/amazon-B0GR6935ZS.html\n{\n  \"retailer\": \"amazon\",\n  \"product_id\": \"B0GR6935ZS\",\n  \"product_url\": \"https://www.amazon.com/dp/B0GR6935ZS\",\n  \"title\": \"Apple 2026 MacBook Air 13-inch Laptop with M5 chip: Built for AI, 13.6-inch Display, 16GB Unified Memory, 512GB SSD, 12MP Center Stage Camera, Touch ID, Wi-Fi 7; Sky Blue with AppleCare+ (3 years)\",\n  \"price\": \"1364.00\",\n  \"currency\": \"USD\",\n  \"availability\": \"InStock\",\n  \"seller\": null,\n  \"discount\": null,\n  \"observed_at\": \"2026-10-29T01:43:01.343958Z\",\n  \"extraction_method\": \"html\",\n  \"brand\": null,\n  \"model\": null,\n  \"cpu\": null,\n  \"ram\": null,\n  \"storage\": null,\n  \"screen_size\": null,\n  \"color\": null,\n  \"condition\": null\n}\nACCEPTED\n\nResults: fetched=1, extracted=1, validated=1, rejected=0, saved=0, failed_saves=0\nExtraction only. No Supabase settings read, connections opened or database writes.\n",
+        "stderr": "",
+        "produced_valid_record": true,
+        "record": {
+          "retailer": "amazon",
+          "product_id": "B0GR6935ZS",
+          "product_url": "https://www.amazon.com/dp/B0GR6935ZS",
+          "title": "Apple 2026 MacBook Air 13-inch Laptop with M5 chip: Built for AI, 13.6-inch Display, 16GB Unified Memory, 512GB SSD, 12MP Center Stage Camera, Touch ID, Wi-Fi 7; Sky Blue with AppleCare+ (3 years)",
+          "price": "1364.00",
+          "currency": "USD",
+          "availability": "InStock",
+          "seller": null,
+          "discount": null,
+          "observed_at": "2026-10-29T01:43:01.343958Z",
+          "extraction_method": "html",
+          "brand": null,
+          "model": null,
+          "cpu": null,
+          "ram": null,
+          "storage": null,
+          "screen_size": null,
+          "color": null,
+          "condition": null
+        },
+        "fetch_status": "succeeded",
+        "extraction_status": "succeeded",
+        "validation_status": "succeeded",
+        "failure_stage": null,
+        "failure_category": null,
+        "failure_detail": null,
+        "fallback_allowed": false,
+        "stage_events": [
+          {
+            "mode": "browser",
+            "fetched": 1,
+            "extracted": 1,
+            "validated": 1,
+            "fallback": false,
+            "navigation": {
+              "requested_url": "https://www.amazon.com/dp/B0GR6935ZS",
+              "final_url": "https://www.amazon.com/dp/B0GR6935ZS",
+              "status": 200,
+              "navigation_retries": 0
+            }
+          }
+        ],
+        "counters": {
+          "fetched": 1,
+          "extracted": 1,
+          "validated": 1,
+          "rejected": 0,
+          "saved": 0,
+          "failed_saves": 0
+        },
+        "diagnostics": []
+      }
+    ],
+    "scraper_result": "accepted",
+    "observed": {
+      "title": "Apple 2026 MacBook Air 13-inch Laptop with M5 chip: Built for AI, 13.6-inch Display, 16GB Unified Memory, 512GB SSD, 12MP Center Stage Camera, Touch ID, Wi-Fi 7; Sky Blue with AppleCare+ (3 years)",
+      "price": "1364.00",
+      "currency": "USD",
+      "availability": "InStock",
+      "product_id": "B0GR6935ZS"
+    },
+    "expected": {
+      "should_accept": null,
+      "title": null,
+      "price": null,
+      "currency": null,
+      "availability": null
+    },
+    "notes": "",
+    "needs_review": true,
+    "review_status": null,
+    "should_accept": null,
+    "reviewed_fields": [],
+    "reviewed_case": {
+      "url": "https://www.amazon.com/dp/B0GR6935ZS",
+      "retailer": "amazon",
+      "product_key": "amazon:B0GR6935ZS",
+      "duplicate_of": null,
+      "scraper_result": "rejected",
+      "observed": {
+        "title": null,
+        "price": null,
+        "currency": null,
+        "availability": null,
+        "product_id": null
+      },
+      "failure_reason": null,
+      "expected": {
+        "should_accept": null,
+        "title": null,
+        "price": null,
+        "currency": null,
+        "availability": null
+      },
+      "needs_review": true,
+      "notes": ""
+    },
+    "browser_attempt_status": "completed",
+    "fetch_status": "succeeded",
+    "extraction_status": "succeeded",
+    "validation_status": "succeeded",
+    "failure_stage": null,
+    "failure_category": null,
+    "failure_detail": null
+  },
+  {
+    "url": "https://www.walmart.com/ip/19715756171",
+    "retailer": "walmart",
+    "product_key": "walmart:19715756171",
+    "benchmark_started_at": "2026-10-29T01:42:30.927481+00:00",
+    "duplicate_of": null,
+    "attempts": [
+      {
+        "mode": "http",
+        "command": [
+          "C:\\Users\\there\\OneDrive\\Desktop\\Shoppie F26 Files\\shoppie\\.venv\\Scripts\\python.exe",
+          "-X",
+          "utf8",
+          "-u",
+          "-m",
+          "scraper.main",
+          "--url",
+          "https://www.walmart.com/ip/19715756171",
+          "--http-only",
+          "--keep-html"
+        ],
+        "return_code": 1,
+        "timed_out": false,
+        "stdout": "\nPage 1/1\nwalmart: 19715756171\nATTEMPT: {\"mode\": \"http\", \"fetched\": 0, \"extracted\": 0, \"validated\": 0, \"fallback\": false, \"failure_stage\": \"fetch\", \"failure_category\": \"challenge_or_access_denied\", \"failure_detail\": \"Retailer redirected to a verification/checkpoint page. Stop here.\"}\nDIAGNOSTIC: {\"failure_stage\": \"fetch\", \"failure_category\": \"challenge_or_access_denied\", \"failure_detail\": \"Retailer redirected to a verification/checkpoint page. Stop here.\", \"fallback_allowed\": false}\nREJECTED: Retailer redirected to a verification/checkpoint page. Stop here.\n\nResults: fetched=0, extracted=0, validated=0, rejected=1, saved=0, failed_saves=0\nExtraction only. No Supabase settings read, connections opened or database writes.\n",
+        "stderr": "",
+        "produced_valid_record": false,
+        "record": null,
+        "fetch_status": "failed",
+        "extraction_status": "not_reached",
+        "validation_status": "not_reached",
+        "failure_stage": "fetch",
+        "failure_category": "challenge_or_access_denied",
+        "failure_detail": "Retailer redirected to a verification/checkpoint page. Stop here.",
+        "fallback_allowed": false,
+        "stage_events": [
+          {
+            "mode": "http",
+            "fetched": 0,
+            "extracted": 0,
+            "validated": 0,
+            "fallback": false,
+            "failure_stage": "fetch",
+            "failure_category": "challenge_or_access_denied",
+            "failure_detail": "Retailer redirected to a verification/checkpoint page. Stop here."
+          }
+        ],
+        "counters": {
+          "fetched": 0,
+          "extracted": 0,
+          "validated": 0,
+          "rejected": 1,
+          "saved": 0,
+          "failed_saves": 0
+        },
+        "diagnostics": [
+          {
+            "failure_stage": "fetch",
+            "failure_category": "challenge_or_access_denied",
+            "failure_detail": "Retailer redirected to a verification/checkpoint page. Stop here.",
+            "fallback_allowed": false
+          }
+        ]
+      }
+    ],
+    "scraper_result": "rejected",
+    "observed": {
+      "title": null,
+      "price": null,
+      "currency": null,
+      "availability": null,
+      "product_id": null
+    },
+    "expected": {
+      "should_accept": null,
+      "title": null,
+      "price": null,
+      "currency": null,
+      "availability": null
+    },
+    "notes": "",
+    "needs_review": true,
+    "review_status": null,
+    "should_accept": null,
+    "reviewed_fields": [],
+    "reviewed_case": {
+      "url": "https://www.walmart.com/ip/19715756171",
+      "retailer": "walmart",
+      "product_key": "walmart:19715756171",
+      "duplicate_of": null,
+      "scraper_result": "rejected",
+      "observed": {
+        "title": null,
+        "price": null,
+        "currency": null,
+        "availability": null,
+        "product_id": null
+      },
+      "failure_reason": null,
+      "expected": {
+        "should_accept": null,
+        "title": null,
+        "price": null,
+        "currency": null,
+        "availability": null
+      },
+      "needs_review": true,
+      "notes": ""
+    },
+    "browser_attempt_status": "not_run_terminal_http_failure",
+    "fetch_status": "failed",
+    "extraction_status": "not_reached",
+    "validation_status": "not_reached",
+    "failure_stage": "fetch",
+    "failure_category": "challenge_or_access_denied",
+    "failure_detail": "Retailer redirected to a verification/checkpoint page. Stop here."
+  },
+  {
+    "url": "https://www.bestbuy.com/product/hp-15-6-laptop-intel-n100-processor-4gb-memory-128gb-ufs-natural-silver/J3PPHF7KP6",
+    "retailer": "bestbuy",
+    "product_key": "bestbuy:J3PPHF7KP6",
+    "benchmark_started_at": "2026-10-29T01:42:30.927481+00:00",
+    "duplicate_of": null,
+    "attempts": [
+      {
+        "mode": "http",
+        "command": [
+          "C:\\Users\\there\\OneDrive\\Desktop\\Shoppie F26 Files\\shoppie\\.venv\\Scripts\\python.exe",
+          "-X",
+          "utf8",
+          "-u",
+          "-m",
+          "scraper.main",
+          "--url",
+          "https://www.bestbuy.com/product/hp-15-6-laptop-intel-n100-processor-4gb-memory-128gb-ufs-natural-silver/J3PPHF7KP6",
+          "--http-only",
+          "--keep-html"
+        ],
+        "return_code": 1,
+        "timed_out": false,
+        "stdout": "\nPage 1/1\nbestbuy: J3PPHF7KP6\nATTEMPT: {\"mode\": \"http\", \"fetched\": 0, \"extracted\": 0, \"validated\": 0, \"fallback\": false, \"failure_stage\": \"fetch\", \"failure_category\": \"request_timeout\", \"failure_detail\": \"HTTP request exceeded its configured connect/read timeout.\"}\nDIAGNOSTIC: {\"failure_stage\": \"fetch\", \"failure_category\": \"request_timeout\", \"failure_detail\": \"HTTP request exceeded its configured connect/read timeout.\", \"fallback_allowed\": true}\nREJECTED: Page request failed or timed out; no record collected.\n\nResults: fetched=0, extracted=0, validated=0, rejected=1, saved=0, failed_saves=0\nExtraction only. No Supabase settings read, connections opened or database writes.\n",
+        "stderr": "",
+        "produced_valid_record": false,
+        "record": null,
+        "fetch_status": "failed",
+        "extraction_status": "not_reached",
+        "validation_status": "not_reached",
+        "failure_stage": "fetch",
+        "failure_category": "request_timeout",
+        "failure_detail": "HTTP request exceeded its configured connect/read timeout.",
+        "fallback_allowed": true,
+        "stage_events": [
+          {
+            "mode": "http",
+            "fetched": 0,
+            "extracted": 0,
+            "validated": 0,
+            "fallback": false,
+            "failure_stage": "fetch",
+            "failure_category": "request_timeout",
+            "failure_detail": "HTTP request exceeded its configured connect/read timeout."
+          }
+        ],
+        "counters": {
+          "fetched": 0,
+          "extracted": 0,
+          "validated": 0,
+          "rejected": 1,
+          "saved": 0,
+          "failed_saves": 0
+        },
+        "diagnostics": [
+          {
+            "failure_stage": "fetch",
+            "failure_category": "request_timeout",
+            "failure_detail": "HTTP request exceeded its configured connect/read timeout.",
+            "fallback_allowed": true
+          }
+        ]
+      },
+      {
+        "mode": "browser",
+        "command": [
+          "C:\\Users\\there\\OneDrive\\Desktop\\Shoppie F26 Files\\shoppie\\.venv\\Scripts\\python.exe",
+          "-X",
+          "utf8",
+          "-u",
+          "-m",
+          "scraper.main",
+          "--url",
+          "https://www.bestbuy.com/product/hp-15-6-laptop-intel-n100-processor-4gb-memory-128gb-ufs-natural-silver/J3PPHF7KP6",
+          "--browser",
+          "--keep-html"
+        ],
+        "return_code": 1,
+        "timed_out": false,
+        "stdout": "\nPage 1/1\nbestbuy: J3PPHF7KP6\nATTEMPT: {\"mode\": \"browser\", \"fetched\": 0, \"extracted\": 0, \"validated\": 0, \"fallback\": false, \"failure_stage\": \"fetch\", \"failure_category\": \"browser_navigation_error\", \"failure_detail\": \"Chrome navigation failed: ERR_HTTP2_PROTOCOL_ERROR.\"}\nDIAGNOSTIC: {\"failure_stage\": \"fetch\", \"failure_category\": \"browser_navigation_error\", \"failure_detail\": \"Chrome navigation failed: ERR_HTTP2_PROTOCOL_ERROR.\", \"fallback_allowed\": false}\nREJECTED: Browser load failed, timed out, or closed. Check Chrome and network access.\n\nResults: fetched=0, extracted=0, validated=0, rejected=1, saved=0, failed_saves=0\nExtraction only. No Supabase settings read, connections opened or database writes.\n",
+        "stderr": "",
+        "produced_valid_record": false,
+        "record": null,
+        "fetch_status": "failed",
+        "extraction_status": "not_reached",
+        "validation_status": "not_reached",
+        "failure_stage": "fetch",
+        "failure_category": "browser_navigation_error",
+        "failure_detail": "Chrome navigation failed: ERR_HTTP2_PROTOCOL_ERROR.",
+        "fallback_allowed": false,
+        "stage_events": [
+          {
+            "mode": "browser",
+            "fetched": 0,
+            "extracted": 0,
+            "validated": 0,
+            "fallback": false,
+            "failure_stage": "fetch",
+            "failure_category": "browser_navigation_error",
+            "failure_detail": "Chrome navigation failed: ERR_HTTP2_PROTOCOL_ERROR."
+          }
+        ],
+        "counters": {
+          "fetched": 0,
+          "extracted": 0,
+          "validated": 0,
+          "rejected": 1,
+          "saved": 0,
+          "failed_saves": 0
+        },
+        "diagnostics": [
+          {
+            "failure_stage": "fetch",
+            "failure_category": "browser_navigation_error",
+            "failure_detail": "Chrome navigation failed: ERR_HTTP2_PROTOCOL_ERROR.",
+            "fallback_allowed": false
+          }
+        ]
+      }
+    ],
+    "scraper_result": "rejected",
+    "observed": {
+      "title": null,
+      "price": null,
+      "currency": null,
+      "availability": null,
+      "product_id": null
+    },
+    "expected": {
+      "should_accept": null,
+      "title": null,
+      "price": null,
+      "currency": null,
+      "availability": null
+    },
+    "notes": "",
+    "needs_review": true,
+    "review_status": null,
+    "should_accept": null,
+    "reviewed_fields": [],
+    "reviewed_case": {
+      "url": "https://www.bestbuy.com/product/hp-15-6-laptop-intel-n100-processor-4gb-memory-128gb-ufs-natural-silver/J3PPHF7KP6",
+      "retailer": "bestbuy",
+      "product_key": "bestbuy:J3PPHF7KP6",
+      "duplicate_of": null,
+      "scraper_result": "rejected",
+      "observed": {
+        "title": null,
+        "price": null,
+        "currency": null,
+        "availability": null,
+        "product_id": null
+      },
+      "failure_reason": null,
+      "expected": {
+        "should_accept": null,
+        "title": null,
+        "price": null,
+        "currency": null,
+        "availability": null
+      },
+      "needs_review": true,
+      "notes": ""
+    },
+    "browser_attempt_status": "completed",
+    "fetch_status": "failed",
+    "extraction_status": "not_reached",
+    "validation_status": "not_reached",
+    "failure_stage": "fetch",
+    "failure_category": "browser_navigation_error",
+    "failure_detail": "Chrome navigation failed: ERR_HTTP2_PROTOCOL_ERROR."
+  },
+  {
+    "url": "https://www.bestbuy.com/product/hp-15-6-laptop-intel-n100-processor-4gb-memory-128gb-storage-natural-silver/J3PPHF7KP6",
+    "retailer": "bestbuy",
+    "product_key": "bestbuy:J3PPHF7KP6",
+    "benchmark_started_at": "2026-10-29T01:42:30.927481+00:00",
+    "duplicate_of": "https://www.bestbuy.com/product/hp-15-6-laptop-intel-n100-processor-4gb-memory-128gb-ufs-natural-silver/J3PPHF7KP6",
+    "attempts": [
+      {
+        "mode": "http",
+        "command": [
+          "C:\\Users\\there\\OneDrive\\Desktop\\Shoppie F26 Files\\shoppie\\.venv\\Scripts\\python.exe",
+          "-X",
+          "utf8",
+          "-u",
+          "-m",
+          "scraper.main",
+          "--url",
+          "https://www.bestbuy.com/product/hp-15-6-laptop-intel-n100-processor-4gb-memory-128gb-storage-natural-silver/J3PPHF7KP6",
+          "--http-only",
+          "--keep-html"
+        ],
+        "return_code": 1,
+        "timed_out": false,
+        "stdout": "\nPage 1/1\nbestbuy: J3PPHF7KP6\nATTEMPT: {\"mode\": \"http\", \"fetched\": 0, \"extracted\": 0, \"validated\": 0, \"fallback\": false, \"failure_stage\": \"fetch\", \"failure_category\": \"request_timeout\", \"failure_detail\": \"HTTP request exceeded its configured connect/read timeout.\"}\nDIAGNOSTIC: {\"failure_stage\": \"fetch\", \"failure_category\": \"request_timeout\", \"failure_detail\": \"HTTP request exceeded its configured connect/read timeout.\", \"fallback_allowed\": true}\nREJECTED: Page request failed or timed out; no record collected.\n\nResults: fetched=0, extracted=0, validated=0, rejected=1, saved=0, failed_saves=0\nExtraction only. No Supabase settings read, connections opened or database writes.\n",
+        "stderr": "",
+        "produced_valid_record": false,
+        "record": null,
+        "fetch_status": "failed",
+        "extraction_status": "not_reached",
+        "validation_status": "not_reached",
+        "failure_stage": "fetch",
+        "failure_category": "request_timeout",
+        "failure_detail": "HTTP request exceeded its configured connect/read timeout.",
+        "fallback_allowed": true,
+        "stage_events": [
+          {
+            "mode": "http",
+            "fetched": 0,
+            "extracted": 0,
+            "validated": 0,
+            "fallback": false,
+            "failure_stage": "fetch",
+            "failure_category": "request_timeout",
+            "failure_detail": "HTTP request exceeded its configured connect/read timeout."
+          }
+        ],
+        "counters": {
+          "fetched": 0,
+          "extracted": 0,
+          "validated": 0,
+          "rejected": 1,
+          "saved": 0,
+          "failed_saves": 0
+        },
+        "diagnostics": [
+          {
+            "failure_stage": "fetch",
+            "failure_category": "request_timeout",
+            "failure_detail": "HTTP request exceeded its configured connect/read timeout.",
+            "fallback_allowed": true
+          }
+        ]
+      },
+      {
+        "mode": "browser",
+        "command": [
+          "C:\\Users\\there\\OneDrive\\Desktop\\Shoppie F26 Files\\shoppie\\.venv\\Scripts\\python.exe",
+          "-X",
+          "utf8",
+          "-u",
+          "-m",
+          "scraper.main",
+          "--url",
+          "https://www.bestbuy.com/product/hp-15-6-laptop-intel-n100-processor-4gb-memory-128gb-storage-natural-silver/J3PPHF7KP6",
+          "--browser",
+          "--keep-html"
+        ],
+        "return_code": 1,
+        "timed_out": false,
+        "stdout": "\nPage 1/1\nbestbuy: J3PPHF7KP6\nATTEMPT: {\"mode\": \"browser\", \"fetched\": 0, \"extracted\": 0, \"validated\": 0, \"fallback\": false, \"failure_stage\": \"fetch\", \"failure_category\": \"browser_navigation_error\", \"failure_detail\": \"Chrome navigation failed: ERR_HTTP2_PROTOCOL_ERROR.\"}\nDIAGNOSTIC: {\"failure_stage\": \"fetch\", \"failure_category\": \"browser_navigation_error\", \"failure_detail\": \"Chrome navigation failed: ERR_HTTP2_PROTOCOL_ERROR.\", \"fallback_allowed\": false}\nREJECTED: Browser load failed, timed out, or closed. Check Chrome and network access.\n\nResults: fetched=0, extracted=0, validated=0, rejected=1, saved=0, failed_saves=0\nExtraction only. No Supabase settings read, connections opened or database writes.\n",
+        "stderr": "",
+        "produced_valid_record": false,
+        "record": null,
+        "fetch_status": "failed",
+        "extraction_status": "not_reached",
+        "validation_status": "not_reached",
+        "failure_stage": "fetch",
+        "failure_category": "browser_navigation_error",
+        "failure_detail": "Chrome navigation failed: ERR_HTTP2_PROTOCOL_ERROR.",
+        "fallback_allowed": false,
+        "stage_events": [
+          {
+            "mode": "browser",
+            "fetched": 0,
+            "extracted": 0,
+            "validated": 0,
+            "fallback": false,
+            "failure_stage": "fetch",
+            "failure_category": "browser_navigation_error",
+            "failure_detail": "Chrome navigation failed: ERR_HTTP2_PROTOCOL_ERROR."
+          }
+        ],
+        "counters": {
+          "fetched": 0,
+          "extracted": 0,
+          "validated": 0,
+          "rejected": 1,
+          "saved": 0,
+          "failed_saves": 0
+        },
+        "diagnostics": [
+          {
+            "failure_stage": "fetch",
+            "failure_category": "browser_navigation_error",
+            "failure_detail": "Chrome navigation failed: ERR_HTTP2_PROTOCOL_ERROR.",
+            "fallback_allowed": false
+          }
+        ]
+      }
+    ],
+    "scraper_result": "rejected",
+    "observed": {
+      "title": null,
+      "price": null,
+      "currency": null,
+      "availability": null,
+      "product_id": null
+    },
+    "expected": {
+      "should_accept": null,
+      "title": null,
+      "price": null,
+      "currency": null,
+      "availability": null
+    },
+    "notes": "",
+    "needs_review": true,
+    "review_status": null,
+    "should_accept": null,
+    "reviewed_fields": [],
+    "reviewed_case": {
+      "url": "https://www.bestbuy.com/product/hp-15-6-laptop-intel-n100-processor-4gb-memory-128gb-storage-natural-silver/J3PPHF7KP6",
+      "retailer": "bestbuy",
+      "product_key": "bestbuy:J3PPHF7KP6",
+      "duplicate_of": "https://www.bestbuy.com/product/hp-15-6-laptop-intel-n100-processor-4gb-memory-128gb-ufs-natural-silver/J3PPHF7KP6",
+      "scraper_result": "rejected",
+      "observed": {
+        "title": null,
+        "price": null,
+        "currency": null,
+        "availability": null,
+        "product_id": null
+      },
+      "failure_reason": null,
+      "expected": {
+        "should_accept": null,
+        "title": null,
+        "price": null,
+        "currency": null,
+        "availability": null
+      },
+      "needs_review": true,
+      "notes": ""
+    },
+    "browser_attempt_status": "completed",
+    "fetch_status": "failed",
+    "extraction_status": "not_reached",
+    "validation_status": "not_reached",
+    "failure_stage": "fetch",
+    "failure_category": "browser_navigation_error",
+    "failure_detail": "Chrome navigation failed: ERR_HTTP2_PROTOCOL_ERROR."
+  },
+  {
+    "url": "https://www.amazon.com/gp/product/B0GR1JTFP8",
+    "retailer": "amazon",
+    "product_key": "amazon:B0GR1JTFP8",
+    "benchmark_started_at": "2026-10-29T01:42:30.927481+00:00",
+    "duplicate_of": null,
+    "attempts": [
+      {
+        "mode": "http",
+        "command": [
+          "C:\\Users\\there\\OneDrive\\Desktop\\Shoppie F26 Files\\shoppie\\.venv\\Scripts\\python.exe",
+          "-X",
+          "utf8",
+          "-u",
+          "-m",
+          "scraper.main",
+          "--url",
+          "https://www.amazon.com/gp/product/B0GR1JTFP8",
+          "--http-only",
+          "--keep-html"
+        ],
+        "return_code": 1,
+        "timed_out": false,
+        "stdout": "\nPage 1/1\namazon: B0GR1JTFP8\nATTEMPT: {\"mode\": \"http\", \"fetched\": 1, \"extracted\": 1, \"validated\": 0, \"fallback\": false, \"failure_stage\": \"validation\", \"failure_category\": \"validation_failed\", \"failure_detail\": \"Required product fields failed validation.\"}\nArchived in scraper/data/pages/amazon-B0GR1JTFP8.html\nDIAGNOSTIC: {\"failure_stage\": \"validation\", \"failure_category\": \"validation_failed\", \"failure_detail\": \"Required product fields failed validation.\", \"fallback_allowed\": true}\nREJECTED: required fields failed validation; no database write.\n - title: not found in the retrieved product data\n - price: not found in the retrieved product data\n - currency: not found in the retrieved product data\n\nResults: fetched=1, extracted=1, validated=0, rejected=1, saved=0, failed_saves=0\nExtraction only. No Supabase settings read, connections opened or database writes.\n",
+        "stderr": "",
+        "produced_valid_record": false,
+        "record": null,
+        "fetch_status": "succeeded",
+        "extraction_status": "succeeded",
+        "validation_status": "failed",
+        "failure_stage": "validation",
+        "failure_category": "validation_failed",
+        "failure_detail": "Required product fields failed validation.",
+        "fallback_allowed": true,
+        "stage_events": [
+          {
+            "mode": "http",
+            "fetched": 1,
+            "extracted": 1,
+            "validated": 0,
+            "fallback": false,
+            "failure_stage": "validation",
+            "failure_category": "validation_failed",
+            "failure_detail": "Required product fields failed validation."
+          }
+        ],
+        "counters": {
+          "fetched": 1,
+          "extracted": 1,
+          "validated": 0,
+          "rejected": 1,
+          "saved": 0,
+          "failed_saves": 0
+        },
+        "diagnostics": [
+          {
+            "failure_stage": "validation",
+            "failure_category": "validation_failed",
+            "failure_detail": "Required product fields failed validation.",
+            "fallback_allowed": true
+          }
+        ]
+      },
+      {
+        "mode": "browser",
+        "command": [
+          "C:\\Users\\there\\OneDrive\\Desktop\\Shoppie F26 Files\\shoppie\\.venv\\Scripts\\python.exe",
+          "-X",
+          "utf8",
+          "-u",
+          "-m",
+          "scraper.main",
+          "--url",
+          "https://www.amazon.com/gp/product/B0GR1JTFP8",
+          "--browser",
+          "--keep-html"
+        ],
+        "return_code": 0,
+        "timed_out": false,
+        "stdout": "\nPage 1/1\namazon: B0GR1JTFP8\nATTEMPT: {\"mode\": \"browser\", \"fetched\": 1, \"extracted\": 1, \"validated\": 1, \"fallback\": false, \"navigation\": {\"requested_url\": \"https://www.amazon.com/gp/product/B0GR1JTFP8\", \"final_url\": \"https://www.amazon.com/gp/product/B0GR1JTFP8\", \"status\": 200, \"navigation_retries\": 0}}\nArchived in scraper/data/pages/amazon-B0GR1JTFP8.html\n{\n  \"retailer\": \"amazon\",\n  \"product_id\": \"B0GR1JTFP8\",\n  \"product_url\": \"https://www.amazon.com/gp/product/B0GR1JTFP8\",\n  \"title\": \"Apple 2026 MacBook Air 13-inch Laptop with M5 chip: Built for AI, 13.6-inch Liquid Retina Display, 16GB Unified Memory, 512GB SSD, 12MP Center Stage Camera, Touch ID, Wi-Fi 7; Midnight\",\n  \"price\": \"1149.00\",\n  \"currency\": \"USD\",\n  \"availability\": \"InStock\",\n  \"seller\": null,\n  \"discount\": null,\n  \"observed_at\": \"2026-10-29T01:44:09.708337Z\",\n  \"extraction_method\": \"html\",\n  \"brand\": \"Apple\",\n  \"model\": \"MDHE4LL/A\",\n  \"cpu\": \"Unknown\",\n  \"ram\": \"16 GB\",\n  \"storage\": \"512 GB\",\n  \"screen_size\": \"13.6 inches\",\n  \"color\": \"Midnight\",\n  \"condition\": \"NewCondition\"\n}\nACCEPTED\n\nResults: fetched=1, extracted=1, validated=1, rejected=0, saved=0, failed_saves=0\nExtraction only. No Supabase settings read, connections opened or database writes.\n",
+        "stderr": "",
+        "produced_valid_record": true,
+        "record": {
+          "retailer": "amazon",
+          "product_id": "B0GR1JTFP8",
+          "product_url": "https://www.amazon.com/gp/product/B0GR1JTFP8",
+          "title": "Apple 2026 MacBook Air 13-inch Laptop with M5 chip: Built for AI, 13.6-inch Liquid Retina Display, 16GB Unified Memory, 512GB SSD, 12MP Center Stage Camera, Touch ID, Wi-Fi 7; Midnight",
+          "price": "1149.00",
+          "currency": "USD",
+          "availability": "InStock",
+          "seller": null,
+          "discount": null,
+          "observed_at": "2026-10-29T01:44:09.708337Z",
+          "extraction_method": "html",
+          "brand": "Apple",
+          "model": "MDHE4LL/A",
+          "cpu": "Unknown",
+          "ram": "16 GB",
+          "storage": "512 GB",
+          "screen_size": "13.6 inches",
+          "color": "Midnight",
+          "condition": "NewCondition"
+        },
+        "fetch_status": "succeeded",
+        "extraction_status": "succeeded",
+        "validation_status": "succeeded",
+        "failure_stage": null,
+        "failure_category": null,
+        "failure_detail": null,
+        "fallback_allowed": false,
+        "stage_events": [
+          {
+            "mode": "browser",
+            "fetched": 1,
+            "extracted": 1,
+            "validated": 1,
+            "fallback": false,
+            "navigation": {
+              "requested_url": "https://www.amazon.com/gp/product/B0GR1JTFP8",
+              "final_url": "https://www.amazon.com/gp/product/B0GR1JTFP8",
+              "status": 200,
+              "navigation_retries": 0
+            }
+          }
+        ],
+        "counters": {
+          "fetched": 1,
+          "extracted": 1,
+          "validated": 1,
+          "rejected": 0,
+          "saved": 0,
+          "failed_saves": 0
+        },
+        "diagnostics": []
+      }
+    ],
+    "scraper_result": "accepted",
+    "observed": {
+      "title": "Apple 2026 MacBook Air 13-inch Laptop with M5 chip: Built for AI, 13.6-inch Liquid Retina Display, 16GB Unified Memory, 512GB SSD, 12MP Center Stage Camera, Touch ID, Wi-Fi 7; Midnight",
+      "price": "1149.00",
+      "currency": "USD",
+      "availability": "InStock",
+      "product_id": "B0GR1JTFP8"
+    },
+    "expected": {
+      "should_accept": null,
+      "title": null,
+      "price": null,
+      "currency": null,
+      "availability": null
+    },
+    "notes": "",
+    "needs_review": true,
+    "review_status": null,
+    "should_accept": null,
+    "reviewed_fields": [],
+    "reviewed_case": {
+      "url": "https://www.amazon.com/gp/product/B0GR1JTFP8",
+      "retailer": "amazon",
+      "product_key": "amazon:B0GR1JTFP8",
+      "duplicate_of": null,
+      "scraper_result": "rejected",
+      "observed": {
+        "title": null,
+        "price": null,
+        "currency": null,
+        "availability": null,
+        "product_id": null
+      },
+      "failure_reason": null,
+      "expected": {
+        "should_accept": null,
+        "title": null,
+        "price": null,
+        "currency": null,
+        "availability": null
+      },
+      "needs_review": true,
+      "notes": ""
+    },
+    "browser_attempt_status": "completed",
+    "fetch_status": "succeeded",
+    "extraction_status": "succeeded",
+    "validation_status": "succeeded",
+    "failure_stage": null,
+    "failure_category": null,
+    "failure_detail": null
+  },
+  {
+    "url": "https://www.amazon.com/dp/B0GR6KJ72L",
+    "retailer": "amazon",
+    "product_key": "amazon:B0GR6KJ72L",
+    "benchmark_started_at": "2026-10-29T01:42:30.927481+00:00",
+    "duplicate_of": null,
+    "attempts": [
+      {
+        "mode": "http",
+        "command": [
+          "C:\\Users\\there\\OneDrive\\Desktop\\Shoppie F26 Files\\shoppie\\.venv\\Scripts\\python.exe",
+          "-X",
+          "utf8",
+          "-u",
+          "-m",
+          "scraper.main",
+          "--url",
+          "https://www.amazon.com/dp/B0GR6KJ72L",
+          "--http-only",
+          "--keep-html"
+        ],
+        "return_code": 1,
+        "timed_out": false,
+        "stdout": "\nPage 1/1\namazon: B0GR6KJ72L\nATTEMPT: {\"mode\": \"http\", \"fetched\": 1, \"extracted\": 1, \"validated\": 0, \"fallback\": false, \"failure_stage\": \"validation\", \"failure_category\": \"validation_failed\", \"failure_detail\": \"Required product fields failed validation.\"}\nArchived in scraper/data/pages/amazon-B0GR6KJ72L.html\nDIAGNOSTIC: {\"failure_stage\": \"validation\", \"failure_category\": \"validation_failed\", \"failure_detail\": \"Required product fields failed validation.\", \"fallback_allowed\": true}\nREJECTED: required fields failed validation; no database write.\n - title: not found in the retrieved product data\n - price: not found in the retrieved product data\n - currency: not found in the retrieved product data\n\nResults: fetched=1, extracted=1, validated=0, rejected=1, saved=0, failed_saves=0\nExtraction only. No Supabase settings read, connections opened or database writes.\n",
+        "stderr": "",
+        "produced_valid_record": false,
+        "record": null,
+        "fetch_status": "succeeded",
+        "extraction_status": "succeeded",
+        "validation_status": "failed",
+        "failure_stage": "validation",
+        "failure_category": "validation_failed",
+        "failure_detail": "Required product fields failed validation.",
+        "fallback_allowed": true,
+        "stage_events": [
+          {
+            "mode": "http",
+            "fetched": 1,
+            "extracted": 1,
+            "validated": 0,
+            "fallback": false,
+            "failure_stage": "validation",
+            "failure_category": "validation_failed",
+            "failure_detail": "Required product fields failed validation."
+          }
+        ],
+        "counters": {
+          "fetched": 1,
+          "extracted": 1,
+          "validated": 0,
+          "rejected": 1,
+          "saved": 0,
+          "failed_saves": 0
+        },
+        "diagnostics": [
+          {
+            "failure_stage": "validation",
+            "failure_category": "validation_failed",
+            "failure_detail": "Required product fields failed validation.",
+            "fallback_allowed": true
+          }
+        ]
+      },
+      {
+        "mode": "browser",
+        "command": [
+          "C:\\Users\\there\\OneDrive\\Desktop\\Shoppie F26 Files\\shoppie\\.venv\\Scripts\\python.exe",
+          "-X",
+          "utf8",
+          "-u",
+          "-m",
+          "scraper.main",
+          "--url",
+          "https://www.amazon.com/dp/B0GR6KJ72L",
+          "--browser",
+          "--keep-html"
+        ],
+        "return_code": 0,
+        "timed_out": false,
+        "stdout": "\nPage 1/1\namazon: B0GR6KJ72L\nATTEMPT: {\"mode\": \"browser\", \"fetched\": 1, \"extracted\": 1, \"validated\": 1, \"fallback\": false, \"navigation\": {\"requested_url\": \"https://www.amazon.com/dp/B0GR6KJ72L\", \"final_url\": \"https://www.amazon.com/dp/B0GR6KJ72L\", \"status\": 200, \"navigation_retries\": 0}}\nArchived in scraper/data/pages/amazon-B0GR6KJ72L.html\n{\n  \"retailer\": \"amazon\",\n  \"product_id\": \"B0GR6KJ72L\",\n  \"product_url\": \"https://www.amazon.com/dp/B0GR6KJ72L\",\n  \"title\": \"Apple 2026 MacBook Neo 13-inch Laptop with A18 Pro chip: Built for AI and Apple Intelligence, Liquid Retina Display, 8GB Unified Memory, 256GB SSD Storage, 1080p FaceTime HD Camera; Blush\",\n  \"price\": \"689.00\",\n  \"currency\": \"USD\",\n  \"availability\": \"InStock\",\n  \"seller\": null,\n  \"discount\": null,\n  \"observed_at\": \"2026-10-29T01:44:18.939587Z\",\n  \"extraction_method\": \"html\",\n  \"brand\": \"Apple\",\n  \"model\": \"MHFH4LL/A\",\n  \"cpu\": \"Apple A18 Pro\",\n  \"ram\": \"8 GB\",\n  \"storage\": \"256 GB\",\n  \"screen_size\": \"13 inches\",\n  \"color\": \"Blush\",\n  \"condition\": \"NewCondition\"\n}\nACCEPTED\n\nResults: fetched=1, extracted=1, validated=1, rejected=0, saved=0, failed_saves=0\nExtraction only. No Supabase settings read, connections opened or database writes.\n",
+        "stderr": "",
+        "produced_valid_record": true,
+        "record": {
+          "retailer": "amazon",
+          "product_id": "B0GR6KJ72L",
+          "product_url": "https://www.amazon.com/dp/B0GR6KJ72L",
+          "title": "Apple 2026 MacBook Neo 13-inch Laptop with A18 Pro chip: Built for AI and Apple Intelligence, Liquid Retina Display, 8GB Unified Memory, 256GB SSD Storage, 1080p FaceTime HD Camera; Blush",
+          "price": "689.00",
+          "currency": "USD",
+          "availability": "InStock",
+          "seller": null,
+          "discount": null,
+          "observed_at": "2026-10-29T01:44:18.939587Z",
+          "extraction_method": "html",
+          "brand": "Apple",
+          "model": "MHFH4LL/A",
+          "cpu": "Apple A18 Pro",
+          "ram": "8 GB",
+          "storage": "256 GB",
+          "screen_size": "13 inches",
+          "color": "Blush",
+          "condition": "NewCondition"
+        },
+        "fetch_status": "succeeded",
+        "extraction_status": "succeeded",
+        "validation_status": "succeeded",
+        "failure_stage": null,
+        "failure_category": null,
+        "failure_detail": null,
+        "fallback_allowed": false,
+        "stage_events": [
+          {
+            "mode": "browser",
+            "fetched": 1,
+            "extracted": 1,
+            "validated": 1,
+            "fallback": false,
+            "navigation": {
+              "requested_url": "https://www.amazon.com/dp/B0GR6KJ72L",
+              "final_url": "https://www.amazon.com/dp/B0GR6KJ72L",
+              "status": 200,
+              "navigation_retries": 0
+            }
+          }
+        ],
+        "counters": {
+          "fetched": 1,
+          "extracted": 1,
+          "validated": 1,
+          "rejected": 0,
+          "saved": 0,
+          "failed_saves": 0
+        },
+        "diagnostics": []
+      }
+    ],
+    "scraper_result": "accepted",
+    "observed": {
+      "title": "Apple 2026 MacBook Neo 13-inch Laptop with A18 Pro chip: Built for AI and Apple Intelligence, Liquid Retina Display, 8GB Unified Memory, 256GB SSD Storage, 1080p FaceTime HD Camera; Blush",
+      "price": "689.00",
+      "currency": "USD",
+      "availability": "InStock",
+      "product_id": "B0GR6KJ72L"
+    },
+    "expected": {
+      "should_accept": null,
+      "title": null,
+      "price": null,
+      "currency": null,
+      "availability": null
+    },
+    "notes": "",
+    "needs_review": true,
+    "review_status": null,
+    "should_accept": null,
+    "reviewed_fields": [],
+    "reviewed_case": {
+      "url": "https://www.amazon.com/dp/B0GR6KJ72L",
+      "retailer": "amazon",
+      "product_key": "amazon:B0GR6KJ72L",
+      "duplicate_of": null,
+      "scraper_result": "rejected",
+      "observed": {
+        "title": null,
+        "price": null,
+        "currency": null,
+        "availability": null,
+        "product_id": null
+      },
+      "failure_reason": null,
+      "expected": {
+        "should_accept": null,
+        "title": null,
+        "price": null,
+        "currency": null,
+        "availability": null
+      },
+      "needs_review": true,
+      "notes": ""
+    },
+    "browser_attempt_status": "completed",
+    "fetch_status": "succeeded",
+    "extraction_status": "succeeded",
+    "validation_status": "succeeded",
+    "failure_stage": null,
+    "failure_category": null,
+    "failure_detail": null
+  }
+]

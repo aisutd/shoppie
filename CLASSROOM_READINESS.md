@@ -1,5 +1,19 @@
 # Target lesson readiness review — October 14, 2026
 
+## October 21 follow-up
+
+See [PIPELINE_STATUS.md](PIPELINE_STATUS.md) for the current environment, fixes,
+test evidence and function guide. Python 3.13.15 now installs the unchanged pins;
+218 offline tests pass. Browser retrieval has bounded product-field readiness
+and explicit incomplete-page failure. HTML extraction scopes named prices to main
+content, excludes secondary regions and accepts page metadata only from head.
+Exact-URL database retrieval is available. No live retailer or Supabase write
+verification was performed in this follow-up. The historical live failures below
+remain unresolved; passing offline tests do not certify a live demonstration.
+
+The rest of this document records the October 14 review, not the current Git
+tracking state or current test count.
+
 **Decision: not ready for a promised automatic Target-to-Supabase demonstration.**
 The explicitly labeled offline extraction/validation lesson is usable after
 the instructor distributes the required non-secret files and rehearses setup.

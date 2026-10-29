@@ -7,12 +7,13 @@ code. `lesson/`, `LESSON.md` and `db/schema.sql` are older reference material.
 
 ## Get ready
 
-Use Python 3.14 and VS Code with Microsoft's Python extension. Open the repository
+Use Python 3.13 and VS Code with Microsoft's Python extension. Open the repository
 folder, open a PowerShell terminal at its root, and run:
 
 ```powershell
-py -3.14 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r scraper/requirements.txt
+py -3.13 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
 .\.venv\Scripts\python.exe -m pip check
 ```
 

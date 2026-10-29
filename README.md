@@ -114,9 +114,10 @@ sql/
 
 ### Windows PowerShell setup — checkpoint 0
 
-Use **64-bit Python 3.14** for this lesson. The pinned dependencies were actually
-verified with **Python 3.14.6 on this Windows computer**; other Python versions and
-a separate fresh Windows computer have not been tested.
+Use **64-bit Python 3.13** for this lesson. The unchanged pinned dependencies were
+verified with **Python 3.13.15 on this Windows computer** on October 21, 2026.
+Python 3.11 cannot install the pinned pyee dependency. A separate fresh Windows
+computer has not been tested.
 
 Install Python, VS Code, and Microsoft's Python extension for VS Code.
 Download or clone the repository, then choose **File > Open Folder** in VS Code
@@ -127,21 +128,22 @@ Create a virtual environment before selecting its interpreter:
 
 ```powershell
 # Use your installed Python to create the environment once.
-py -3.14 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r scraper/requirements.txt
+py -3.13 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
 .\.venv\Scripts\python.exe -m pip check
 .\.venv\Scripts\python.exe scraper/main.py --help
 ```
 
-If `py` is unavailable, use your Python 3.14 executable's full path instead.
-For example, the installed interpreter on this computer is:
+If `py` is unavailable, use your Python 3.13 executable's full path instead.
+For example, on this computer:
 
 ```powershell
-& 'C:\ProgramData\anaconda3\python.exe' -m venv .venv
+& "$env:LOCALAPPDATA\Python\bin\python3.13.exe" -m venv .venv
 ```
 
 All remaining commands use the virtual environment's executable directly.
-Activation is optional. The versions were verified on Windows with Python 3.14.6;
+Activation is optional. The versions were verified on Windows with Python 3.13.15;
 the requirements also pin dependencies used by tests and optional Chrome rendering.
 The root requirements files forward to these pins for earlier lesson commands.
 
@@ -237,9 +239,13 @@ If JavaScript is needed and Google Chrome is installed, try the optional mode:
 .\.venv\Scripts\python.exe scraper/main.py --url $url --browser --stage fetch --keep-html
 ```
 
-This runs a fresh signed-out Chrome session in the background and waits five
-seconds for page scripts. It does not load your Chrome profile or solve bot checks.
-Rendering may still leave required fields missing.
+This runs a fresh signed-out Chrome session in the background. It checks the
+requested product identity and extracted title/price/currency up to ten times,
+two seconds apart, returning immediately when those fields are present. Missing
+fields cause a readiness failure; challenge pages stop immediately. This checks
+presence, not validity: validation still runs afterward. It does not load your
+Chrome profile or solve bot checks. Chrome must be installed separately; the
+project uses `channel="chrome"`, so bundled Playwright Chromium is not required.
 
 ### Extract fields — checkpoint 2
 
@@ -435,7 +441,9 @@ retrying. Earlier lesson files and schemas remain preserved for reference.
 git status --short
 ```
 
-173 tests pass. Exact dependency versions remain recorded in
+218 tests pass as of October 21, 2026. See [the current verification report and
+function guide](PIPELINE_STATUS.md) for evidence and remaining live checks.
+Exact dependency versions remain recorded in
 `scraper/requirements.txt`. Tests cover configuration, parsing, validation, import
 safety, explicit saving, limits, duplicate/variant handling, confirmed mocked
 upserts and read-only database checks.

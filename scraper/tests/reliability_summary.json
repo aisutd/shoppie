@@ -1,0 +1,53 @@
+{
+  "urls": 12,
+  "per_retailer": {
+    "amazon": {
+      "urls": 8,
+      "accepted": 6,
+      "rejected": 2
+    },
+    "bestbuy": {
+      "urls": 2,
+      "accepted": 0,
+      "rejected": 2
+    },
+    "walmart": {
+      "urls": 2,
+      "accepted": 0,
+      "rejected": 2
+    }
+  },
+  "failure_categories": {
+    "challenge_or_access_denied": 4,
+    "validation_failed": 7,
+    "request_timeout": 2,
+    "browser_navigation_error": 2
+  },
+  "final_failure_categories": {
+    "challenge_or_access_denied": 4,
+    "browser_navigation_error": 2
+  },
+  "same_product_variants": 3,
+  "browser_fallback_attempts": 9,
+  "browser_fallback_recoveries": 5,
+  "timeout_count": 2,
+  "connection_reset_count": 0,
+  "redirect_failure_count": 0,
+  "challenge_count": 4,
+  "per_mode": {
+    "http": {
+      "attempts": 12,
+      "accepted": 1,
+      "fetch_successes": 8,
+      "extraction_successes": 8,
+      "validation_successes": 1
+    },
+    "browser": {
+      "attempts": 9,
+      "accepted": 5,
+      "fetch_successes": 5,
+      "extraction_successes": 5,
+      "validation_successes": 5
+    }
+  }
+}
