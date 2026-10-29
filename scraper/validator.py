@@ -1,7 +1,7 @@
 """Checkpoint 3: turn untrusted strings into a validated Python record."""
 
 import re
-from datetime import datetime
+from datetime import datetime, timedelta,timezone
 from decimal import Decimal
 from typing import Literal
 
@@ -12,7 +12,19 @@ from scraper.scraper import clean_url, identify_product
 
 AVAILABILITY = {"InStock", "OutOfStock", "PreOrder", "PreSale", "BackOrder",
                 "LimitedAvailability", "SoldOut", "Discontinued", "OnlineOnly", "InStoreOnly"}
-
+AVAILABILITY_ALIASES = {
+    "instock": "InStock", "in stock": "InStock", "in_stock": "InStock",
+    "outofstock": "OutOfStock", "out of stock": "OutOfStock", "out_of_stock": "OutOfStock",
+    "preorder": "PreOrder", "pre-order": "PreOrder", "pre order": "PreOrder",
+    "presale": "PreSale", "pre-sale": "PreSale",
+    "backorder": "BackOrder", "back order": "BackOrder", "back-order": "BackOrder",
+    "limitedavailability": "LimitedAvailability", "limited availability": "LimitedAvailability",
+    "soldout": "SoldOut", "sold out": "SoldOut", "sold_out": "SoldOut",
+    "discontinued": "Discontinued",
+    "onlineonly": "OnlineOnly", "online only": "OnlineOnly",
+    "instoreonly": "InStoreOnly", "in store only": "InStoreOnly", "in-store only": "InStoreOnly",
+}
+FUTURE_TOLERANCE = timedelta(minutes=5)
 
 class Laptop(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
@@ -32,9 +44,10 @@ class Laptop(BaseModel):
     @field_validator("title")
     @classmethod
     def laptop_title(cls, value):
-        if not re.search(r"\b(laptop|notebook|chromebook|macbook)\b", value, re.I):
+        if not re.search(r"\b(laptop|notebook|chromebook|macbook|thinkpad|thinkbook|ideapad|zenbook|vivobook)\b", value, re.I):
             raise ValueError("title must clearly describe a laptop")
-        if re.search(r"\b(adapter|charger|sleeve|case|bag|replacement|stand)\b", value, re.I):
+        if re.search(r"\b(adapter|charger|sleeve|case|bag|backpack|replacement|stand|battery|"
+                     r"docking|dock|cover|protector|skin|cooling)\b", value, re.I):
             raise ValueError("accessories are outside this lesson")
         return value
 
@@ -45,21 +58,23 @@ class Laptop(BaseModel):
             raise ValueError("price must be a number, not a boolean")
         return value
 
-    @field_validator("availability")
+    @field_validator("availability", mode="before")
     @classmethod
     def explicit_availability(cls, value):
-        if value is None:
-            return None
-        name = re.sub(r"^https?://schema\.org/", "", value)
-        if name not in AVAILABILITY:
-            raise ValueError("unrecognized availability; do not guess")
-        return name
+        if not isinstance(value, str): return None
+        name = re.sub(r"^https?://schema\.org/", "", value.strip(), flags=re.I)
+        if name in AVAILABILITY: 
+            return name
+        return AVAILABILITY_ALIASES.get(name.lower())
+        
 
     @field_validator("observed_at")
     @classmethod
     def timezone_required(cls, value):
         if value.tzinfo is None:
             raise ValueError("observation time needs a timezone")
+        if value > datetime.now(timezone.utc) + FUTURE_TOLERANCE:
+            raise ValueError("observation time cannot be in the future")
         return value
 
     @model_validator(mode="after")
