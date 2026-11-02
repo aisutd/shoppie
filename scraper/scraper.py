@@ -13,7 +13,7 @@ from curl_cffi import requests as cffi_requests
 from bs4 import BeautifulSoup
 from supabase import create_client, Client
 
-# --- BULLETPROOF .ENV LOADING ---
+
 env_path = Path(__file__).resolve().parent / '.env'
 load_dotenv(dotenv_path=env_path)
 
@@ -422,6 +422,13 @@ def extract_product(html, final_url, category="laptops"):
         cleaned = record["title"].strip()
         if cleaned in {"Fair", "Good", "Excellent", "Open Box", "New"} or len(cleaned) < 10:
             record["title"] = None
+
+    if product and product.get("description"):
+        record["description"] = product.get("description").strip()
+    if not record["description"]:
+        meta_desc = soup.select_one('meta[name="description"') or soup.select_one('meta[property="og:description"]')
+        if meta_desc and meta_desc.get("content"):
+            record["description"] = meta_desc.get("content").strip()
 
     # 4. Best Buy embedded state fallback (strict SKU matching)
     if retailer == "bestbuy":
