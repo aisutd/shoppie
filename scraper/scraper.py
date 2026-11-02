@@ -21,9 +21,9 @@ PRODUCT_PATHS = {
     "amazon": r"/(?:dp|gp/product)/([A-Z0-9]{10})(?:/|$)",
     "bestbuy": r"/(?:site/.+/(\d+)\.p|product/[^/]+/([A-Z0-9]+))(?:/|$)",
     "target": r"/p/.*/A-(\d+)(?:/|$)",
-    # FIX: the slug is now optional, so both /ip/<slug>/<id> and /ip/<id> match
-    "walmart": r"/ip/(?:[^/]+/)?(\d+)/?$",
+    "walmart": r"/ip/(?:[^/]+/)?(\d+)(?:/|$)",
 }
+
 
 def identify_product(url):
     """Accept only HTTPS product URLs at our four US retailers."""
@@ -71,9 +71,7 @@ def check_page(html):
         "sorry, we just need to make sure you're not a robot",
         "to allow us to continue, please enter the characters",
         "access denied",
-        "please verify you are a human",
-        "unusual traffic from your computer network",
-        "robot or human",  # FIX: Walmart's bot-check page
+        "please verify you are a human"
     ]
     if any(phrase in body_text for phrase in blocking_phrases):
         raise ValueError("Retailer returned a bot check or access-denied page. Stop here.")
@@ -87,7 +85,6 @@ def fetch_page(url):
     session = cffi_requests.Session()
     try:
         if retailer == "bestbuy":
-            # --- UNTOUCHED BEST BUY LOGIC ---
             headers = {
                 "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1",
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -110,8 +107,6 @@ def fetch_page(url):
                 session.get("https://www.amazon.com", impersonate="chrome", headers=headers, timeout=15)
             elif retailer == "walmart":
                 session.get("https://www.walmart.com", impersonate="chrome", headers=headers, timeout=15)
-            elif retailer == "target":
-                session.get("https://www.target.com", impersonate="chrome", headers=headers, timeout=15)
                 
             response = session.get(
                 original_url, timeout=25, allow_redirects=True,
@@ -120,31 +115,13 @@ def fetch_page(url):
     except Exception as e:
         raise ValueError(f"Page request failed or timed out: {e}") from None
 
-    # Debug line: shows where the request actually ended up after redirects.
-    # Delete it once everything works.
-    print(f"      final URL: {response.url} | status: {response.status_code}")
-
-    # FIX: Walmart redirects blocked scripts to /blocked?url=... Give a clear error.
-    if retailer != "bestbuy" and urlsplit(str(response.url)).path.rstrip("/").endswith("/blocked"):
-        raise ValueError(f"{retailer.title()} served a bot-check page (/blocked). No record collected.")
-
     if response.status_code != 200:
         raise ValueError(f"Retailer returned HTTP {response.status_code}; no record collected.")
     if "text/html" not in response.headers.get("Content-Type", ""):
         raise ValueError("Expected an HTML product page.")
         
     check_page(response.text)
-
-    final_url = response.url
-    if retailer != "bestbuy":
-        # FIX: a harmless redirect to a differently shaped URL shouldn't break extraction.
-        # If the redirected URL isn't recognizable, fall back to the URL the user gave us.
-        try:
-            identify_product(final_url)
-        except ValueError:
-            final_url = original_url
-
-    return response.text, final_url
+    return response.text, response.url
 
 
 def schema_type(node, name):
@@ -204,37 +181,19 @@ def meta(soup, field):
 
 
 def walmart_embedded_data(soup, html_text):
-    """Robustly extracts title and price from Walmart's embedded __NEXT_DATA__ JSON state."""
+    """Extracts title and price from Walmart's embedded JSON state or script tags."""
     title, price = None, None
     for script in soup.select('script'):
         text_content = script.get_text()
-        if '"__NEXT_DATA__"' in text_content or '"initialProps"' in text_content or 'currentPrice' in text_content:
+        if '"__NEXT_DATA__"' in text_content or '"product":' in text_content:
             try:
-                if not price:
-                    for pattern in [
-                        r'"currentPrice"\s*:\s*\{\s*"price"\s*:\s*([\d\.]+)',
-                        r'"price"\s*:\s*([\d\.]+)',
-                        r'"salePrice"\s*:\s*([\d\.]+)'
-                    ]:
-                        price_match = re.search(pattern, text_content)
-                        if price_match:
-                            val = float(price_match.group(1))
-                            if 1.0 < val < 15000.0:
-                                price = str(val)
-                                break
-                
-                if not title:
-                    for pattern in [
-                        r'"name"\s*:\s*"([^"]+(?:Laptop|Notebook|MacBook|iPad|Tablet|Monitor)[^"]*)"',
-                        r'"productName"\s*:\s*"([^"]+)"',
-                        r'"seoTitle"\s*:\s*"([^"]+)"'
-                    ]:
-                        title_match = re.search(pattern, text_content, re.IGNORECASE)
-                        if title_match:
-                            found = title_match.group(1)
-                            if len(found) > 8 and "Walmart" not in found:
-                                title = found
-                                break
+                price_match = re.search(r'"currentPrice"\s*:\s*\{\s*"price"\s*:\s*([\d\.]+)', text_content)
+                if not price_match:
+                    price_match = re.search(r'"price"\s*:\s*([\d\.]+)', text_content)
+                if price_match and not price:
+                    val = price_match.group(1)
+                    if float(val) > 0:
+                        price = val
             except (ValueError, TypeError):
                 pass
     return title, price, "USD" if price else None
@@ -388,12 +347,8 @@ def target_diagnostics(soup, html, record):
 
 
 def extract_product(html, final_url, category="laptops"):
-    retailer, product_id = identify_product(final_url)
-    
-    parts = urlsplit(final_url)
-    clean_domain = parts.hostname.replace("www.", "") if parts.hostname else retailer
-
     check_page(html)
+    retailer, product_id = identify_product(final_url)
     soup = BeautifulSoup(html, "html.parser")
 
     # Guard against alternate/interstitial landing pages
@@ -401,15 +356,19 @@ def extract_product(html, final_url, category="laptops"):
     if retailer == "bestbuy" and product_id not in page_text and not any(k in page_text for k in ["Laptop", "Yoga", "MacBook"]):
         raise ValueError("Retailer served an unrelated landing or interstitial page.")
 
+    parts = urlsplit(final_url)
+    clean_domain = parts.hostname.replace("www.", "") if parts.hostname else retailer
+
     record = {
         "id": str(uuid.uuid5(uuid.NAMESPACE_URL, final_url)),
         "title": None, 
         "price": None, 
         "currency": None, 
         "product_url": final_url,
-        "source": clean_domain,
-        "category": category.lower(),
+        "source": clean_domain,  # Matches database domain check constraint
+        "category": category.lower(),  # Lowercase to satisfy DB check constraints
         "scraped_at": datetime.now(timezone.utc).isoformat(),
+        "description": None,
     }
 
     # 1. JSON-LD structured data extraction
@@ -423,10 +382,6 @@ def extract_product(html, final_url, category="laptops"):
             record["price"] = offers.get("price")
             record["currency"] = offers.get("priceCurrency")
             
-    # 1b. Target: handle list / nested JSON-LD offers
-    if retailer == "target" and product and record["price"] is None:
-        record["price"], record["currency"] = target_offer_price(product.get("offers"))
-
     # 2. Retailer-specific Title Fallbacks
     if not record["title"]:
         titles = {
@@ -450,6 +405,18 @@ def extract_product(html, final_url, category="laptops"):
                 if len(clean_title) > 8:
                     record["title"] = clean_title.strip()
 
+    if product and product.get("description"):
+        record["description"] = product.get("description").strip()
+
+    if not record["description"]:
+        meta_desc = (
+            soup.select_one('meta[name="description"]') or 
+            soup.select_one('meta[property="og:description"]') or 
+            soup.select_one('meta[name="twitter:description"]')
+        )
+        if meta_desc and meta_desc.get("content"):
+            record["description"] = meta_desc.get("content").strip()
+
     # Clean up invalid/condition titles
     if retailer == "bestbuy" and record["title"]:
         cleaned = record["title"].strip()
@@ -470,29 +437,12 @@ def extract_product(html, final_url, category="laptops"):
     if record["currency"] is None:
         record["currency"] = meta(soup, "price:currency") or meta(soup, "priceCurrency") or meta(soup, "currency")
         
-    # 5b. Target embedded page state (more specific than the loose CSS selectors below)
-    if retailer == "target" and record["price"] is None:
-        t_price = target_embedded_data(soup)
-        if t_price:
-            record["price"] = t_price
-            record["currency"] = "USD"
-
-    # 5c. Target rendered price element (present once the page's JavaScript has run).
-    # Lenient on cents because Target may show whole-dollar prices like "$599".
-    if retailer == "target" and record["price"] is None:
-        for elem in soup.select('[data-test="product-price"]'):
-            match = re.search(r'\$\s?([\d,]+(?:\.\d{2})?)', elem.get_text(" ", strip=True))
-            if match:
-                record["price"] = match.group(1).replace(",", "")
-                record["currency"] = "USD"
-                break
-
     # 6. Retailer-specific CSS & Element Selectors
     price_selectors = {
         "amazon": '.a-price .a-offscreen, span.a-price-whole, .apexPriceToPay .a-offscreen',
         "bestbuy": 'div[class*="priceView-hero-price"] span[aria-hidden="true"], span[class*="pricing-price"], div[class*="price-block"] span',
-        "target": '[data-test="product-price"], span[class*="Price"], span[data-test="red-card-price"]',
-        "walmart": '[itemprop="price"], span[itemprop="price"], div[data-testid="price-wrap"] span, span[class*="price"]'
+        "target": '[data-test="product-price"], span[class*="Price"]',
+        "walmart": '[itemprop="price"], span[itemprop="price"], div[data-testid="price-wrap"] span'
     }
     
     if retailer in price_selectors and record["price"] is None:
@@ -506,19 +456,14 @@ def extract_product(html, final_url, category="laptops"):
 
     # 7. Walmart embedded JSON fallback
     if retailer == "walmart" and record["price"] is None:
-        w_title, w_price, w_curr = walmart_embedded_data(soup, html)
+        _, w_price, w_curr = walmart_embedded_data(soup, html)
         if w_price:
             record["price"] = w_price
             record["currency"] = w_curr
-        if not record["title"] and w_title:
-            record["title"] = w_title
 
     # Final validation: Ensure we didn't pull garbage or empty data
     if not record["title"] or record["price"] is None:
-        message = "Could not reliably extract product title or price. Retailer may have served a redirect or interstitial page."
-        if retailer == "target":
-            message += "\nTarget page diagnostics:\n" + target_diagnostics(soup, html, record)
-        raise ValueError(message)
+        raise ValueError("Could not reliably extract product title or price. Retailer may have served a redirect or interstitial page.")
 
     if record["price"] is not None and not record["currency"]:
         record["currency"] = "USD"
@@ -549,20 +494,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Single-line e-commerce scraper & Supabase uploader.")
     parser.add_argument("url", type=str, help="Product URL from Amazon, Walmart, Best Buy, or Target")
     parser.add_argument("--category", type=str, default="laptops", help="Product category for classification")
-    parser.add_argument("--save-html", action="store_true", help="Save the fetched page to last_page.html for debugging")
-    parser.add_argument("--show-browser", action="store_true", help="Target only: show the browser window instead of running headless")
     args = parser.parse_args()
 
     print(f"\n[1/3] Fetching page securely: {args.url}")
     try:
-        if identify_product(clean_url(args.url))[0] == "target":
-            print("      Target fills in prices with JavaScript; loading the page in a browser...")
-            html, final_url = render_target_page(args.url, headless=not args.show_browser)
-        else:
-            html, final_url = fetch_page(args.url)
-        if args.save_html:
-            Path("last_page.html").write_text(html, encoding="utf-8")
-            print("      saved page to last_page.html")
+        html, final_url = fetch_page(args.url)
         
         print("[2/3] Extracting required product fields...")
         product_record = extract_product(html, final_url, category=args.category)
