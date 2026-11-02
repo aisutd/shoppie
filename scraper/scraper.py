@@ -313,11 +313,14 @@ def render_target_page(url, headless=True):
     price appears. Stops immediately if Target serves a bot check; it never tries to get around one."""
     try:
         from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
+        from playwright_stealth import Stealth
     except ImportError:
-        raise ValueError("Playwright isn't installed in this environment (pip install playwright).") from None
+        raise ValueError(
+            "Browser support isn't installed (pip install -r scraper/requirements.txt)."
+        ) from None
 
     original_url = clean_url(url)
-    with sync_playwright() as p:
+    with Stealth().use_sync(sync_playwright()) as p:
         try:
             browser = p.chromium.launch(headless=headless)
         except Exception as e:
