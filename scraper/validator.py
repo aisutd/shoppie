@@ -1,7 +1,7 @@
 """Checkpoint 3: turn untrusted strings into a validated Python record."""
 
 import re
-from datetime import datetime, timedelta,timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Literal
 
@@ -61,11 +61,17 @@ class Laptop(BaseModel):
     @field_validator("availability", mode="before")
     @classmethod
     def explicit_availability(cls, value):
-        if not isinstance(value, str): return None
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise ValueError("availability must be text or null")
         name = re.sub(r"^https?://schema\.org/", "", value.strip(), flags=re.I)
         if name in AVAILABILITY: 
             return name
-        return AVAILABILITY_ALIASES.get(name.lower())
+        normalized = AVAILABILITY_ALIASES.get(name.lower())
+        if normalized is None:
+            raise ValueError("unrecognized availability; do not guess")
+        return normalized
         
 
     @field_validator("observed_at")

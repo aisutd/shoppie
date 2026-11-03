@@ -76,9 +76,9 @@ def upsert_product(database: Database, product: Laptop):
     if not isinstance(product, Laptop):
         raise ValueError("Only a validated Laptop may be saved.")
     row = {
-        "retailer": f"{product.retailer}.com","product_id": product.product_id,"product_url": product.product_url,
-        "title": product.title, "price": str(product.price), "currency": product.currency,"seller": f"{product.seller}.com",
-        "category": "laptops", "scraped_at": product.observed_at.isoformat(),"availability": product.availability,
+        "title": product.title, "price": str(product.price), "currency": product.currency,
+        "product_url": product.product_url, "source": f"{product.retailer}.com",
+        "category": "laptops", "scraped_at": product.observed_at.isoformat(),
     }
     headers = request_headers(database)
     headers["Prefer"] = "resolution=merge-duplicates,return=minimal"
