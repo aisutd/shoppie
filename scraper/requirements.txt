@@ -1,6 +1,7 @@
 # Exact environment verified on Windows with Python 3.14.6 (2026-10-14).
 # Direct dependencies: beautifulsoup4, requests, pydantic, python-dotenv,
 # pytest (tests), playwright and playwright-stealth (optional --browser mode).
+# curl_cffi is used by the separate tech_scraper.py collector.
 # Transitive dependencies are pinned too, so installation does not float.
 annotated-types==0.8.0
 beautifulsoup4==4.15.0
@@ -21,8 +22,10 @@ Pygments==2.21.0
 pytest==8.4.2
 python-dotenv==1.2.4
 requests==2.34.2
-supabase==2.14.0
 soupsieve==3.0.3
 typing-inspection==0.4.4
 typing-extensions==4.16.0
 urllib3==2.8.0
+
+# Optional standalone tech collector dependency (not imported by main.py).
+curl_cffi>=0.7,<1

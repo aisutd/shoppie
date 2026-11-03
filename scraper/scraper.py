@@ -387,4 +387,3 @@ def extract_product(html, url):
         record["currency"] = record["currency"] or currency
         record["availability"] = record["availability"] or availability
     return record
-
