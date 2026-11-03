@@ -1,14 +1,23 @@
+import { useEffect, useState } from 'react'
 import SearchSection from './SearchSection.jsx'
+import SearchResults from './SearchResults.jsx'
 import DealsSection from './DealsSection.jsx'
 import useSmoothWheelScroll from './useSmoothWheelScroll.js'
 import Navbar from './Navbar.jsx'
 
 function App() {
+  const [searchResults, setSearchResults] = useState(null)
   useSmoothWheelScroll()
+
+  useEffect(() => {
+    if (searchResults) {
+      document.getElementById('search-results')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [searchResults])
 
   return (
     <main className="relative isolate overflow-hidden bg-gradient-to-b from-[#102746] via-[#0c203c] to-[#102746] text-white">
-        <Navbar />
+        <Navbar isShowingResults={Boolean(searchResults)} onBack={() => setSearchResults(null)} />
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_12%,_rgba(37,99,180,0.24),_transparent_52%)]" aria-hidden="true" />
         <div className="animate-aurora pointer-events-none absolute -inset-[20%] bg-[radial-gradient(ellipse_at_30%_35%,_rgba(37,99,180,0.3),_transparent_42%),radial-gradient(ellipse_at_75%_65%,_rgba(56,130,220,0.2),_transparent_40%)] bg-[length:160%_160%] motion-reduce:animate-none" aria-hidden="true" />
         <div className="animate-drift pointer-events-none absolute -left-40 top-[28rem] size-[28rem] rounded-full bg-blue-500/15 blur-3xl motion-reduce:animate-none" aria-hidden="true" />
@@ -20,8 +29,14 @@ function App() {
             <div className="anim-line-grow mt-8 h-px w-20 bg-blue-300/70 [animation-delay:180ms] motion-reduce:animate-none" />
           </div>
         </section>
-        <SearchSection />
-        <DealsSection />
+        {searchResults ? (
+          <SearchResults search={searchResults} onBack={() => setSearchResults(null)} />
+        ) : (
+          <>
+            <SearchSection onResults={setSearchResults} />
+            <DealsSection />
+          </>
+        )}
     </main>
   )
 }
