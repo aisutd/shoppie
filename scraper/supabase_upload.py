@@ -22,6 +22,7 @@ def upload_products(validated_products):
     for product in validated_products:
         # Explicitly omit id so existing generated IDs survive upserts.
         row = {field: product[field] for field in UPLOAD_FIELDS}
+        row["image_url"] = product.get("image_url")
 
         timestamp = row["scraped_at"]
 

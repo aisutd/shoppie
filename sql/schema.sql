@@ -22,6 +22,10 @@ create table public.products (
     constraint products_title_min_characters
         check (length(regexp_replace(title, '[[:space:]]', '', 'g')) >= 3),
     description text,
+    image_url text,
+    constraint products_image_url_https check (
+        image_url is null or image_url ~ '^https://[^[:space:]]+$'
+    ),
 
     -- 10 digits before the decimal and 2 after it; reject zero/negative/NaN.
     price numeric(12, 2) not null,
