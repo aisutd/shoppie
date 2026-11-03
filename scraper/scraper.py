@@ -4,6 +4,7 @@ import json
 import re
 import uuid
 import argparse
+import requests
 from datetime import datetime, timezone
 from urllib.parse import parse_qs, urljoin, urlsplit
 from pathlib import Path
@@ -11,7 +12,6 @@ from dotenv import load_dotenv
 from curl_cffi import CurlOpt, CurlHttpVersion
 from curl_cffi import requests as cffi_requests
 from bs4 import BeautifulSoup
-from supabase import create_client, Client
 
 
 env_path = Path(__file__).resolve().parent / '.env'
@@ -178,6 +178,16 @@ def text(soup, selector):
 def meta(soup, field):
     tag = soup.select_one(f'meta[property="product:{field}"]') or soup.select_one(f'meta[property="og:{field}"]') or soup.select_one(f'meta[name="{field}"]')
     return tag.get("content") if tag else None
+
+
+def normalize_category(category):
+    """Convert a human category label into the database's lowercase slug form."""
+    category = re.sub(r"[^a-z0-9]+", "-", str(category).strip().lower()).strip("-")
+    if not category:
+        raise ValueError("Category must contain at least one letter or number.")
+    if len(category) > 64:
+        raise ValueError("Category must be 64 characters or fewer.")
+    return category
 
 
 def walmart_embedded_data(soup, html_text):
@@ -351,11 +361,6 @@ def extract_product(html, final_url, category="laptops"):
     retailer, product_id = identify_product(final_url)
     soup = BeautifulSoup(html, "html.parser")
 
-    # Guard against alternate/interstitial landing pages
-    page_text = soup.get_text()
-    if retailer == "bestbuy" and product_id not in page_text and not any(k in page_text for k in ["Laptop", "Yoga", "MacBook"]):
-        raise ValueError("Retailer served an unrelated landing or interstitial page.")
-
     parts = urlsplit(final_url)
     clean_domain = parts.hostname.replace("www.", "") if parts.hostname else retailer
 
@@ -366,7 +371,7 @@ def extract_product(html, final_url, category="laptops"):
         "currency": None, 
         "product_url": final_url,
         "source": clean_domain,  # Matches database domain check constraint
-        "category": category.lower(),  # Lowercase to satisfy DB check constraints
+        "category": normalize_category(category),
         "scraped_at": datetime.now(timezone.utc).isoformat(),
         "description": None,
     }
@@ -485,22 +490,58 @@ def extract_product(html, final_url, category="laptops"):
 
 
 def upload_to_supabase(record):
-    """Uploads the scraped product record directly to Supabase."""
+    """Upsert the scraped tech product to public.products using the backend secret key."""
     supabase_url = os.environ.get("SUPABASE_URL")
-    supabase_key = os.environ.get("SUPABASE_KEY")
+    supabase_key = os.environ.get("SUPABASE_SECRET_KEY")
     
     if not supabase_url or not supabase_key:
-        raise ValueError("Missing SUPABASE_URL or SUPABASE_KEY in environment variables (.env).")
-        
-    client: Client = create_client(supabase_url, supabase_key)
-    response = client.table("products").upsert(record).execute()
+        raise ValueError("Missing SUPABASE_URL or SUPABASE_SECRET_KEY in scraper/.env.")
+    if not supabase_key.startswith("sb_secret_") or any(character.isspace() for character in supabase_key):
+        raise ValueError("SUPABASE_SECRET_KEY must be a modern sb_secret_ backend key.")
+
+    parts = urlsplit(record["product_url"])
+    payload = {
+        "title": record["title"],
+        "description": record.get("description"),
+        "price": record["price"],
+        "currency": record["currency"],
+        "product_url": record["product_url"],
+        "source": parts.hostname.replace("www.", ""),
+        "category": normalize_category(record["category"]),
+        "scraped_at": record["scraped_at"],
+    }
+    try:
+        response = requests.post(
+            f"{supabase_url.rstrip('/')}/rest/v1/products",
+            params={"on_conflict": "product_url"},
+            headers={
+                "apikey": supabase_key,
+                "Accept": "application/json",
+                "Prefer": "resolution=merge-duplicates,return=minimal",
+            },
+            json=payload,
+            timeout=25,
+            allow_redirects=False,
+        )
+    except requests.RequestException:
+        raise ValueError("Could not reach Supabase; check the project URL, network, and project status.") from None
+    if response.status_code not in (200, 201, 204):
+        if response.status_code == 401:
+            reason = "Supabase rejected the secret key. Confirm it belongs to this project."
+        elif response.status_code == 403:
+            reason = "Supabase denied access to public.products. Check backend table grants."
+        elif response.status_code in (400, 409, 422):
+            reason = "Supabase rejected the product data or table constraints. Check the category migration and products schema."
+        else:
+            reason = f"Supabase returned HTTP {response.status_code}."
+        raise ValueError(reason)
     return response
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Single-line e-commerce scraper & Supabase uploader.")
+    parser = argparse.ArgumentParser(description="Scrape a tech product and optionally upsert it to Supabase.")
     parser.add_argument("url", type=str, help="Product URL from Amazon, Walmart, Best Buy, or Target")
-    parser.add_argument("--category", type=str, default="laptops", help="Product category for classification")
+    parser.add_argument("--category", type=str, default="laptops", help="Tech product category (for example: phones, tablets, headphones)")
     args = parser.parse_args()
 
     print(f"\n[1/3] Fetching page securely: {args.url}")

@@ -1,4 +1,4 @@
-# public.products: latest laptop observations
+# public.products: latest tech product observations
 
 Run `inspect_products.sql` in the **existing shared Supabase project** first.
 If `existing_products_relation` is NULL, run `schema.sql` to create the table.
@@ -19,29 +19,31 @@ and API access still need verification in the actual shared project.
 
 ## Python field mapping
 
-| Column | Current validated Python value | Notes |
+| Column | Direct scraper value | Notes |
 | --- | --- | --- |
 | `id` | Omit | PostgreSQL generates a UUID on insert; keep it on update. |
-| `title` | `product.title` | SQL requires at least 3 non-whitespace characters. The current laptop validator is stricter. |
+| `title` | Extracted product title | SQL requires at least 3 non-whitespace characters. |
+| `description` | `record.get("description")` | Optional description extracted from the product page; NULL when unavailable. |
 | `price` | `str(product.price)` | Exact Decimal serialization; stored as `numeric(12,2)`. |
 | `currency` | `product.currency` | Required, explicitly USD; no SQL fallback/default. |
 | `product_url` | `product.product_url` | Cleaned HTTPS product URL; unique upsert key. |
 | `source` | `f"{product.retailer}.com"` | Known retailer becomes its domain: `amazon` → `amazon.com`, etc. Must match the URL host, ignoring `www.`. |
-| `category` | `"laptops"` | Explicit tag for this validated laptop-only lesson. |
-| `scraped_at` | `product.observed_at.isoformat()` | Includes a UTC offset; the actual observation time. |
+| `category` | Normalized `--category` value | Lowercase slug, up to 64 characters, for example `phones` or `smart-home`. |
+| `scraped_at` | Scrape timestamp | Includes a UTC offset; the actual observation time. |
 
 `product_id`, availability, seller, discount and extraction method have no columns
 here. The instructor backend maps an already validated record as follows:
 
 ```python
 row = {
-    "title": product.title,
-    "price": str(product.price),
-    "currency": product.currency,
-    "product_url": product.product_url,
-    "source": f"{product.retailer}.com",
-    "category": "laptops",
-    "scraped_at": product.observed_at.isoformat(),
+    "title": record["title"],
+    "description": record.get("description"),
+    "price": record["price"],
+    "currency": record["currency"],
+    "product_url": record["product_url"],
+    "source": source_domain,
+    "category": normalized_category,
+    "scraped_at": record["scraped_at"],
 }
 ```
 
@@ -87,12 +89,12 @@ The service-role/secret key remains privileged across the project; these grants
 do not turn it into a narrowly scoped student credential. Keep it on the instructor
 backend, never in the repository, student environment or chat.
 
-`scraper/database.py` now reads `SUPABASE_URL` and `SUPABASE_SECRET_KEY` through
-the script-relative configuration loader. It uses the secret only in the API-key
-header, without student sign-in. `--check-db` reads at most one products ID and
-never writes or prints a row/key. A successful read proves connectivity only;
-separately verify a controlled write before relying on uploads. The original
-student uploader's schema is preserved separately.
+The direct `scraper/scraper.py` command reads `SUPABASE_URL` and
+`SUPABASE_SECRET_KEY` from `scraper/.env` and uses the secret only in the API-key
+header, without student sign-in. It previews one product and waits for upload
+confirmation. The batch/checkpoint workflow in `scraper/main.py` remains a
+separate laptop-only lesson path. The original student uploader's schema is
+preserved separately.
 
 ## Existing-table migration proposal
 
