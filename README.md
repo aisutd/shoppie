@@ -23,6 +23,24 @@ docker compose ps
 
 This is a generic starter configuration. The team can add project-specific dependencies and startup commands later.
 
+## Direct tech product scraper
+
+The main single-product command keeps the direct `scraper.py` workflow. From the
+repository root, run:
+
+```powershell
+python scraper/scraper.py 'BEST_BUY_PRODUCT_URL' --category 'phones'
+```
+
+The scraper fetches and previews the product, then asks before uploading it to
+`public.products`. The default category is `laptops`; categories such as `phones`,
+`tablets`, and `headphones` are normalized to lowercase hyphenated labels. The
+four supported retailer domains remain Amazon, Best Buy, Target, and Walmart.
+Set `SUPABASE_URL` and `SUPABASE_SECRET_KEY` in `scraper/.env`. To allow categories
+beyond laptops in an existing Supabase table, run `sql/migrate_products_categories.sql`
+in that project's SQL editor. New tables created from `sql/schema.sql` already
+allow normalized categories.
+
 ## Beginner Python lesson: real laptop data
 
 ### Classroom option when automated retrieval fails
@@ -377,6 +395,12 @@ These are the four command modes. From the repository root in PowerShell:
 # First controlled write check: at most one validated product/write attempt.
 .\.venv\Scripts\python.exe scraper/main.py --limit 1 --save
 ```
+
+For one-at-a-time uploads, run `scraper/ShoppieUploader.exe`; it opens a
+terminal, prompts for a product URL, and prints the validation and upload result.
+The executable reads `scraper/.env` beside it. To rebuild it on Windows, install
+PyInstaller in `.venv` with `\.\.venv\Scripts\python.exe -m pip install pyinstaller`,
+then run `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scraper\build_uploader.ps1`.
 
 Inside `scraper/`, use `..\.venv\Scripts\python.exe main.py` followed by the
 same flags. With the environment activated or its Python on PATH, these are

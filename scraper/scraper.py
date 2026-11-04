@@ -8,7 +8,6 @@ from urllib.parse import parse_qs, urljoin, urlsplit
 import requests
 from bs4 import BeautifulSoup
 
-
 PRODUCT_PATHS = {
     "amazon": r"/(?:dp|gp/product)/([A-Z0-9]{10})(?:/|$)",
     "bestbuy": r"/(?:site/.+/(\d+)\.p|product/[^/]+/([A-Z0-9]+))(?:/|$)",
@@ -84,8 +83,11 @@ def check_page(html):
         tag.decompose()
     lower = soup.get_text(" ", strip=True).lower()
     markers = ["robot check", "validatecaptcha", "verify you are human",
-               "verify you're human", "press & hold", "access denied"]
-    if any(marker in lower for marker in markers) or soup.select_one('input[name="captchacharacters"]'):
+               "verify you're human", "press & hold", "access denied",
+               "click the button below to continue shopping"]
+    if (any(marker in lower for marker in markers)
+            or soup.select_one('input[name="captchacharacters"]')
+            or soup.select_one('form[action*="validateCaptcha"]')):
         raise ValueError("Retailer returned a bot check or access-denied page. Stop here.")
 
 
@@ -121,15 +123,16 @@ def fetch_page(url):
 
 
 def fetch_rendered_page(url):
-    """Optional Chrome rendering for JavaScript-rendered product pages."""
+    """Optional Chromium rendering for JavaScript-rendered product pages."""
     try:
         from playwright.sync_api import sync_playwright, Error
+        from playwright_stealth import Stealth
     except ImportError:
         raise ValueError("Install scraper/requirements.txt to use --browser.") from None
     url = clean_url(url)
     try:
-        with sync_playwright() as playwright:
-            with playwright.chromium.launch(channel="chrome", headless=True) as browser:
+        with Stealth().use_sync(sync_playwright()) as playwright:
+            with playwright.chromium.launch(headless=True) as browser:
                 page = browser.new_page()
                 response = page.goto(url, wait_until="domcontentloaded", timeout=30000)
                 if response is None or response.status != 200:
@@ -250,6 +253,64 @@ def target_embedded_title(soup, product_id):
     return next(iter(titles), None)
 
 
+def amazon_page_fields(soup):
+    """Read Amazon's product title and primary offer from product-specific areas."""
+    title = text(soup, "#productTitle, #title_feature_div #title")
+    if not title:
+        # Open Graph title is page-scoped metadata, unlike recommendation cards.
+        tag = soup.select_one('meta[property="og:title"]')
+        value = tag.get("content", "").strip() if tag else ""
+        if value and value.lower() not in {"amazon.com", "amazon"}:
+            title = value
+
+    price = currency = availability = None
+    containers = soup.select(
+        "#corePriceDisplay_desktop_feature_div, #corePrice_feature_div, "
+        "#apex_desktop, #buybox"
+    )
+    # Amazon also publishes the selected currency in its navigation's
+    # currencyInfo, even when the primary offer markup omits priceCurrency.
+    # Use that explicit page setting only alongside a price from the product area.
+    page_currency = None
+    for script in soup.find_all("script"):
+        script_text = script.string or script.get_text()
+        match = re.search(
+            r'"currencyInfo"\s*:\s*\{\s*"code"\s*:\s*"([A-Z]{3})"',
+            script_text,
+        )
+        if match:
+            page_currency = match.group(1)
+            break
+    for container in containers:
+        currency_tag = container.select_one('[itemprop="priceCurrency"], [data-a-currency-code]')
+        if currency_tag:
+            currency = currency_tag.get("content") or currency_tag.get("data-a-currency-code")
+        if price is None:
+            price_tag = container.select_one(
+                '.a-price:not(.a-text-price) .a-offscreen, '
+                '#priceblock_ourprice, #priceblock_dealprice, #priceblock_saleprice'
+            )
+            if price_tag:
+                displayed = price_tag.get("content") or price_tag.get_text(" ", strip=True)
+                match = re.fullmatch(
+                    r"\s*(US\$|\$)?\s*((?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d{2})?)\s*",
+                    displayed,
+                )
+                if match:
+                    symbol, amount = match.groups()
+                    price = amount.replace(",", "")
+                    # A bare dollar sign does not establish currency.
+                    if symbol == "US$":
+                        currency = currency or "USD"
+        if availability is None:
+            availability_tag = container.select_one('[itemprop="availability"]')
+            if availability_tag:
+                availability = availability_tag.get("href") or availability_tag.get_text(" ", strip=True)
+    if price is not None and currency is None:
+        currency = page_currency
+    return title, price, currency, availability
+
+
 def extract_product(html, url):
     check_page(html)
     url = clean_url(url)
@@ -267,11 +328,12 @@ def extract_product(html, url):
     record = {
         "retailer": retailer, "product_id": product_id, "product_url": url,
         "title": None, "price": None, "currency": None, "availability": None,
-        "seller": None, "discount": None,
+        "seller": None, "discount": None, "image_url": None,
         "observed_at": datetime.now(timezone.utc).isoformat(),
         "extraction_method": "html",
     }
     product = main_product(soup, url)
+    record["image_url"] = product_image_url(soup, product, url)
     if product:
         record["extraction_method"] = "json-ld"
         record["title"] = product.get("name")
@@ -320,14 +382,61 @@ def extract_product(html, url):
             if displayed.startswith("US$"):
                 record["currency"] = "USD"
     if retailer == "amazon":
-        container = soup.select_one("#corePriceDisplay_desktop_feature_div, #corePrice_feature_div")
-        if container and record["price"] is None:
-            displayed = text(container, ".a-price:not(.a-text-price) .a-offscreen")
-            if displayed:
-                # US$ explicitly identifies currency; a bare $ does not.
-                if displayed.startswith("US$"):
-                    record["currency"] = "USD"
-                amount = re.sub(r"^(US\$|\$)", "", displayed).replace(",", "")
-                record["price"] = amount
+        title, price, currency, availability = amazon_page_fields(soup)
+        record["title"] = record["title"] or title
+        record["price"] = record["price"] or price
+        record["currency"] = record["currency"] or currency
+        record["availability"] = record["availability"] or availability
     return record
 
+
+def product_image_url(soup, product, page_url):
+    candidates = []
+
+    def add_json_image(value):
+        if isinstance(value, str):
+            candidates.append(value)
+        elif isinstance(value, list):
+            for item in value:
+                add_json_image(item)
+        elif isinstance(value, dict):
+            for key in ("url", "contentUrl", "thumbnailUrl"):
+                if value.get(key):
+                    add_json_image(value[key])
+
+    if product:
+        add_json_image(product.get("image"))
+
+    for selector in (
+        'meta[property="og:image"]',
+        'meta[property="og:image:secure_url"]',
+        'meta[name="twitter:image"]',
+    ):
+        tag = soup.select_one(selector)
+        if tag and tag.get("content"):
+            candidates.append(tag["content"])
+
+    for selector in (
+        "#landingImage",
+        'img[itemprop="image"]',
+        '[data-test*="product-image"] img',
+        '[data-testid*="hero"] img',
+        "main img",
+    ):
+        image = soup.select_one(selector)
+        if not image:
+            continue
+        for attribute in ("data-src", "data-original", "src", "data-srcset", "srcset"):
+            value = image.get(attribute)
+            if value:
+                candidates.append(value.split(",")[0].strip().split()[0])
+
+    for candidate in candidates:
+        try:
+            resolved = urljoin(page_url, candidate.strip())
+            parts = urlsplit(resolved)
+            if parts.scheme == "https" and parts.hostname and not parts.username and not parts.password:
+                return resolved
+        except (AttributeError, ValueError):
+            continue
+    return None

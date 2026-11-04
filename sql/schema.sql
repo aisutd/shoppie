@@ -1,4 +1,4 @@
--- Shoppie: latest laptop observations, uploaded by the instructor's backend.
+-- Shoppie: latest tech product observations, uploaded by the instructor's backend.
 -- Run sql/inspect_products.sql FIRST in the shared Supabase SQL Editor.
 -- New-table creation only; existing-table guidance is in sql/PRODUCTS.md.
 -- Earlier classroom schema: sql/legacy_scraper_schema.sql (preserved).
@@ -21,6 +21,11 @@ create table public.products (
     title text not null,
     constraint products_title_min_characters
         check (length(regexp_replace(title, '[[:space:]]', '', 'g')) >= 3),
+    description text,
+    image_url text,
+    constraint products_image_url_https check (
+        image_url is null or image_url ~ '^https://[^[:space:]]+$'
+    ),
 
     -- 10 digits before the decimal and 2 after it; reject zero/negative/NaN.
     price numeric(12, 2) not null,
@@ -47,7 +52,9 @@ create table public.products (
     ),
 
     category text not null,
-    constraint products_category_laptops check (category = 'laptops'),
+    constraint products_category_format check (
+        category ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and length(category) <= 64
+    ),
 
     -- Actual observation time with UTC offset, not the later upload time.
     scraped_at timestamptz not null
