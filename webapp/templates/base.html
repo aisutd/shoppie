@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shoppie</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 46rem; margin: 2rem auto; padding: 0 1rem; color: #222; }
+    h1 { margin-bottom: 0.25rem; }
+    dl { display: grid; grid-template-columns: 10rem 1fr; gap: 0.25rem 1rem; background: #f6f7f9; padding: 1rem; border-radius: 8px; }
+    dt { font-weight: 600; }
+    dd { margin: 0; word-break: break-word; }
+    input[name="url"] { width: 100%; padding: 0.5rem; margin: 0.25rem 0 0.75rem; box-sizing: border-box; }
+    button { padding: 0.5rem 1.25rem; cursor: pointer; }
+    .flash { list-style: none; padding: 0; }
+    .flash li { padding: 0.5rem 0.75rem; border-radius: 6px; margin-bottom: 0.4rem; white-space: pre-wrap; }
+    .ok { background: #e6f4ea; color: #137333; }
+    .warn { background: #fef7e0; color: #a15c00; }
+    .error { background: #fde8e8; color: #a50e0e; }
+  </style>
+</head>
+<body>
+  <h1>Shoppie</h1>
+  <p>Laptop product-page reader — fetch one public page and extract its record.</p>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <ul class="flash">
+        {% for category, message in messages %}
+          <li class="{{ category }}">{{ message }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</body>
+</html>

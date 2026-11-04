@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>{{ record.title or record.product_id }}</h2>
+<p><a href="{{ record.product_url }}" target="_blank" rel="noopener noreferrer">{{ record.product_url }}</a></p>
+
+<dl>
+  <dt>retailer</dt><dd>{{ record.retailer }}</dd>
+  <dt>product_id</dt><dd>{{ record.product_id }}</dd>
+  <dt>title</dt><dd>{{ record.title or '—' }}</dd>
+  <dt>price</dt><dd>{{ record.price or '—' }} {{ record.currency or '' }}</dd>
+  <dt>availability</dt><dd>{{ record.availability or '—' }}</dd>
+  <dt>seller</dt><dd>{{ record.seller or '—' }}</dd>
+  <dt>observed_at</dt><dd>{{ record.observed_at }}</dd>
+  <dt>extraction_method</dt><dd>{{ record.extraction_method }}</dd>
+</dl>
+
+<p><a href="{{ url_for('index') }}">Extract another page</a></p>
+{% endblock %}

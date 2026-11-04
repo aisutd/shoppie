@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block content %}
+<form method="post" action="{{ url_for('extract') }}">
+  <label for="url"><strong>Retailer URL</strong> (Amazon /dp/ASIN, Best Buy /site/….p, Target /p/A-…)</label>
+  <input type="url" name="url" id="url" required placeholder="https://www.amazon.com/dp/B0EXAMPLE1">
+  <label>
+    <input type="checkbox" name="browser"> Render with Chrome (for JavaScript-heavy pages)
+  </label>
+  <button type="submit">Extract</button>
+</form>
+{% endblock %}
