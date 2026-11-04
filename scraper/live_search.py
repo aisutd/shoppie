@@ -20,7 +20,7 @@ from scraper import tech_scraper
 
 logger = logging.getLogger(__name__)
 _collection_lock = threading.Lock()
-COLLECTION_SECONDS = 55
+COLLECTION_SECONDS = 110
 
 
 class CollectedProduct(BaseModel):

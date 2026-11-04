@@ -18,7 +18,7 @@ from scraper.tech_scraper import check_page, clean_url, identify_product
 
 
 SEARCH_ROOT = "https://www.bestbuy.com/site/searchpage.jsp"
-MAX_PRODUCTS = 8
+MAX_PRODUCTS = 16
 logger = logging.getLogger(__name__)
 
 

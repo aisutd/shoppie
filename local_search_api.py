@@ -575,6 +575,32 @@ def search_with_model_terms(
     return products
 
 
+def merge_catalog_products(catalog, fresh_products):
+    """Combine stored and freshly collected listings, preferring fresh values by URL."""
+    merged = []
+    positions = {}
+    for product in catalog:
+        item = dict(product)
+        url = item.get("product_url")
+        key = ("url", url) if url else ("catalog", len(merged))
+        positions[key] = len(merged)
+        merged.append(item)
+
+    for product in fresh_products:
+        item = dict(product)
+        url = item.get("product_url")
+        key = ("url", url) if url else ("fresh", len(merged))
+        if key in positions:
+            index = positions[key]
+            # Retain stored values such as the database ID when the collector
+            # omits them, while letting non-empty fresh fields replace stale data.
+            merged[index].update({name: value for name, value in item.items() if value not in (None, "")})
+        else:
+            positions[key] = len(merged)
+            merged.append(item)
+    return merged
+
+
 def search_response(query):
     """Collect fresh Best Buy candidates, save them, then apply existing ranking."""
     database = load_database_config()
@@ -588,17 +614,27 @@ def search_response(query):
         word for word in discovery_query.split() if word.casefold() not in SEARCH_STOP_WORDS
     ) or query
     candidates, collection = collect_live_products(discovery_query, database)
-    if collection["saved"]:
-        # Another search should not use the five-minute pre-collection snapshot.
-        with _catalog_lock:
-            _catalog_cache["expires_at"] = 0
     if candidates:
+        # Search both the stored catalog and this request's newly collected
+        # listings. Live fields win for duplicate product URLs.
         try:
-            products = search_products(query, catalog=candidates)
+            stored_products = load_catalog(database)
+        except requests.RequestException:
+            stored_products = []
+            collection["errors"].append(
+                "The stored catalog could not be loaded; only fresh listings are included."
+            )
+        combined_products = merge_catalog_products(stored_products, candidates)
+        if collection["saved"]:
+            # Keep this request's snapshot, then refresh the cache on the next search.
+            with _catalog_lock:
+                _catalog_cache["expires_at"] = 0
+        try:
+            products = search_products(query, catalog=combined_products)
         except (requests.RequestException, ValueError):
             # Collection may succeed even when optional Ollama expansion fails.
-            # Keep the successfully saved records, but don't show unranked items.
-            products = search_products(query, catalog=candidates, allow_model=False)
+            # Keep direct fuzzy matches across stored and fresh listings.
+            products = search_products(query, catalog=combined_products, allow_model=False)
             collection["errors"].append("Optional AI query expansion was unavailable; only direct matches are shown.")
     else:
         try:
