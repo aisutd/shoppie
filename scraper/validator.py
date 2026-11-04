@@ -1,9 +1,10 @@
 """Checkpoint 3: turn untrusted strings into a validated Python record."""
 
 import re
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -12,7 +13,19 @@ from scraper.scraper import clean_url, identify_product
 
 AVAILABILITY = {"InStock", "OutOfStock", "PreOrder", "PreSale", "BackOrder",
                 "LimitedAvailability", "SoldOut", "Discontinued", "OnlineOnly", "InStoreOnly"}
-
+AVAILABILITY_ALIASES = {
+    "instock": "InStock", "in stock": "InStock", "in_stock": "InStock",
+    "outofstock": "OutOfStock", "out of stock": "OutOfStock", "out_of_stock": "OutOfStock",
+    "preorder": "PreOrder", "pre-order": "PreOrder", "pre order": "PreOrder",
+    "presale": "PreSale", "pre-sale": "PreSale",
+    "backorder": "BackOrder", "back order": "BackOrder", "back-order": "BackOrder",
+    "limitedavailability": "LimitedAvailability", "limited availability": "LimitedAvailability",
+    "soldout": "SoldOut", "sold out": "SoldOut", "sold_out": "SoldOut",
+    "discontinued": "Discontinued",
+    "onlineonly": "OnlineOnly", "online only": "OnlineOnly",
+    "instoreonly": "InStoreOnly", "in store only": "InStoreOnly", "in-store only": "InStoreOnly",
+}
+FUTURE_TOLERANCE = timedelta(minutes=5)
 
 class Laptop(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
@@ -23,6 +36,7 @@ class Laptop(BaseModel):
     title: str = Field(min_length=5, max_length=1000)
     price: Decimal = Field(gt=0, max_digits=12, decimal_places=2, allow_inf_nan=False)
     currency: Literal["USD"]
+    image_url: str | None = None
     availability: str | None = None
     seller: str | None = Field(default=None, max_length=300)
     discount: None = None  # Not extracted in this lesson. Unknown is not zero.
@@ -40,9 +54,10 @@ class Laptop(BaseModel):
     @field_validator("title")
     @classmethod
     def laptop_title(cls, value):
-        if not re.search(r"\b(laptop|notebook|chromebook|macbook)\b", value, re.I):
+        if not re.search(r"\b(laptop|notebook|chromebook|macbook|thinkpad|thinkbook|ideapad|zenbook|vivobook)\b", value, re.I):
             raise ValueError("title must clearly describe a laptop")
-        if re.search(r"\b(adapter|charger|sleeve|case|bag|replacement|stand)\b", value, re.I):
+        if re.search(r"\b(adapter|charger|sleeve|case|bag|backpack|replacement|stand|battery|"
+                     r"docking|dock|cover|protector|skin|cooling)\b", value, re.I):
             raise ValueError("accessories are outside this lesson")
         return value
 
@@ -53,21 +68,44 @@ class Laptop(BaseModel):
             raise ValueError("price must be a number, not a boolean")
         return value
 
-    @field_validator("availability")
+    @field_validator("image_url", mode="before")
+    @classmethod
+    def secure_image_url(cls, value):
+        if value is None or value == "":
+            return None
+        if not isinstance(value, str):
+            raise ValueError("image_url must be an HTTPS URL or null")
+        try:
+            parts = urlsplit(value)
+        except ValueError:
+            raise ValueError("image_url must be an HTTPS URL or null") from None
+        if parts.scheme != "https" or not parts.hostname or parts.username or parts.password:
+            raise ValueError("image_url must be an HTTPS URL or null")
+        return value
+
+    @field_validator("availability", mode="before")
     @classmethod
     def explicit_availability(cls, value):
         if value is None:
             return None
-        name = re.sub(r"^https?://schema\.org/", "", value)
-        if name not in AVAILABILITY:
+        if not isinstance(value, str):
+            raise ValueError("availability must be text or null")
+        name = re.sub(r"^https?://schema\.org/", "", value.strip(), flags=re.I)
+        if name in AVAILABILITY: 
+            return name
+        normalized = AVAILABILITY_ALIASES.get(name.lower())
+        if normalized is None:
             raise ValueError("unrecognized availability; do not guess")
-        return name
+        return normalized
+        
 
     @field_validator("observed_at")
     @classmethod
     def timezone_required(cls, value):
         if value.tzinfo is None:
             raise ValueError("observation time needs a timezone")
+        if value > datetime.now(timezone.utc) + FUTURE_TOLERANCE:
+            raise ValueError("observation time cannot be in the future")
         return value
 
     @model_validator(mode="after")

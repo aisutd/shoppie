@@ -16,8 +16,13 @@
 .playwright/
 test-results/
 playwright-report/
+scraper/build/
+scraper/ShoppieUploader.exe
 __pycache__/
 *.py[cod]
 .pytest_cache/
+# Frontend dependencies and build output
+node_modules/
+dist/
 # Downloaded public pages and lesson output
 data/

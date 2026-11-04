@@ -2,13 +2,18 @@
 
 import os
 import re
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from dotenv import dotenv_values
 
 
-SCRIPT_DIR = Path(__file__).resolve().parent
+if getattr(sys, "frozen", False):
+    # Keep the .env beside the standalone executable, never inside the bundle.
+    SCRIPT_DIR = Path(sys.executable).resolve().parent
+else:
+    SCRIPT_DIR = Path(__file__).resolve().parent
 
 
 def script_path(path):

@@ -98,23 +98,54 @@ def same_requested_product(original, destination):
 
 def check_page(html):
     soup = BeautifulSoup(html, "html.parser")
+
     # Inspect visible text, not scripts that may merely mention a bot-check route.
     for tag in soup.select("script, style"):
         tag.decompose()
+
     lower = soup.get_text(" ", strip=True).lower()
-    markers = ["robot check", "validatecaptcha", "verify you are human",
-               "verify you're human", "press & hold", "access denied", "robot or human?",
-               "sorry, we just need to make sure you're not a robot"]
-    if any(marker in lower for marker in markers) or soup.select_one('input[name="captchacharacters"]'):
-        raise ScraperFailure("Retailer returned a bot check or access-denied page. Stop here.", "challenge_or_access_denied")
+
+    markers = [
+        "robot check",
+        "validatecaptcha",
+        "verify you are human",
+        "verify you're human",
+        "press & hold",
+        "access denied",
+        "robot or human?",
+        "sorry, we just need to make sure you're not a robot",
+        "click the button below to continue shopping",
+    ]
+
+    if (
+        any(marker in lower for marker in markers)
+        or soup.select_one('input[name="captchacharacters"]')
+        or soup.select_one('form[action*="validateCaptcha"]')
+    ):
+        raise ScraperFailure(
+            "Retailer returned a bot check or access-denied page. Stop here.",
+            "challenge_or_access_denied",
+        )
 
 
 def check_checkpoint_url(url):
     """Known live verification routes are terminal; never log their query tokens."""
     parts = urlsplit(url)
-    if ((parts.hostname in {"walmart.com", "www.walmart.com"} and parts.path == "/blocked")
-            or (parts.hostname in {"amazon.com", "www.amazon.com"} and parts.path == "/checkpoint/continue")):
-        raise ScraperFailure("Retailer redirected to a verification/checkpoint page. Stop here.", "challenge_or_access_denied")
+
+    if (
+        (
+            parts.hostname in {"walmart.com", "www.walmart.com"}
+            and parts.path == "/blocked"
+        )
+        or (
+            parts.hostname in {"amazon.com", "www.amazon.com"}
+            and parts.path == "/checkpoint/continue"
+        )
+    ):
+        raise ScraperFailure(
+            "Retailer redirected to a verification/checkpoint page. Stop here.",
+            "challenge_or_access_denied",
+        )
 
 
 def fetch_page(url):
@@ -349,6 +380,64 @@ def target_embedded_title(soup, product_id):
     return next(iter(titles), None)
 
 
+def amazon_page_fields(soup):
+    """Read Amazon's product title and primary offer from product-specific areas."""
+    title = text(soup, "#productTitle, #title_feature_div #title")
+    if not title:
+        # Open Graph title is page-scoped metadata, unlike recommendation cards.
+        tag = soup.select_one('meta[property="og:title"]')
+        value = tag.get("content", "").strip() if tag else ""
+        if value and value.lower() not in {"amazon.com", "amazon"}:
+            title = value
+
+    price = currency = availability = None
+    containers = soup.select(
+        "#corePriceDisplay_desktop_feature_div, #corePrice_feature_div, "
+        "#apex_desktop, #buybox"
+    )
+    # Amazon also publishes the selected currency in its navigation's
+    # currencyInfo, even when the primary offer markup omits priceCurrency.
+    # Use that explicit page setting only alongside a price from the product area.
+    page_currency = None
+    for script in soup.find_all("script"):
+        script_text = script.string or script.get_text()
+        match = re.search(
+            r'"currencyInfo"\s*:\s*\{\s*"code"\s*:\s*"([A-Z]{3})"',
+            script_text,
+        )
+        if match:
+            page_currency = match.group(1)
+            break
+    for container in containers:
+        currency_tag = container.select_one('[itemprop="priceCurrency"], [data-a-currency-code]')
+        if currency_tag:
+            currency = currency_tag.get("content") or currency_tag.get("data-a-currency-code")
+        if price is None:
+            price_tag = container.select_one(
+                '.a-price:not(.a-text-price) .a-offscreen, '
+                '#priceblock_ourprice, #priceblock_dealprice, #priceblock_saleprice'
+            )
+            if price_tag:
+                displayed = price_tag.get("content") or price_tag.get_text(" ", strip=True)
+                match = re.fullmatch(
+                    r"\s*(US\$|\$)?\s*((?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d{2})?)\s*",
+                    displayed,
+                )
+                if match:
+                    symbol, amount = match.groups()
+                    price = amount.replace(",", "")
+                    # A bare dollar sign does not establish currency.
+                    if symbol == "US$":
+                        currency = currency or "USD"
+        if availability is None:
+            availability_tag = container.select_one('[itemprop="availability"]')
+            if availability_tag:
+                availability = availability_tag.get("href") or availability_tag.get_text(" ", strip=True)
+    if price is not None and currency is None:
+        currency = page_currency
+    return title, price, currency, availability
+
+
 def extract_product(html, url):
     check_page(html)
     url = clean_url(url)
@@ -366,11 +455,12 @@ def extract_product(html, url):
     record = {
         "retailer": retailer, "product_id": product_id, "product_url": url,
         "title": None, "price": None, "currency": None, "availability": None,
-        "seller": None, "discount": None,
+        "seller": None, "discount": None, "image_url": None,
         "observed_at": datetime.now(timezone.utc).isoformat(),
         "extraction_method": "html",
     }
     product = main_product(soup, url)
+    record["image_url"] = product_image_url(soup, product, url)
     if product:
         record["extraction_method"] = "json-ld"
         record["title"] = product.get("name")
@@ -453,3 +543,54 @@ def extract_product(html, url):
     record.update(specifications(soup, retailer, product_id))
     return record
 
+
+def product_image_url(soup, product, page_url):
+    candidates = []
+
+    def add_json_image(value):
+        if isinstance(value, str):
+            candidates.append(value)
+        elif isinstance(value, list):
+            for item in value:
+                add_json_image(item)
+        elif isinstance(value, dict):
+            for key in ("url", "contentUrl", "thumbnailUrl"):
+                if value.get(key):
+                    add_json_image(value[key])
+
+    if product:
+        add_json_image(product.get("image"))
+
+    for selector in (
+        'meta[property="og:image"]',
+        'meta[property="og:image:secure_url"]',
+        'meta[name="twitter:image"]',
+    ):
+        tag = soup.select_one(selector)
+        if tag and tag.get("content"):
+            candidates.append(tag["content"])
+
+    for selector in (
+        "#landingImage",
+        'img[itemprop="image"]',
+        '[data-test*="product-image"] img',
+        '[data-testid*="hero"] img',
+        "main img",
+    ):
+        image = soup.select_one(selector)
+        if not image:
+            continue
+        for attribute in ("data-src", "data-original", "src", "data-srcset", "srcset"):
+            value = image.get(attribute)
+            if value:
+                candidates.append(value.split(",")[0].strip().split()[0])
+
+    for candidate in candidates:
+        try:
+            resolved = urljoin(page_url, candidate.strip())
+            parts = urlsplit(resolved)
+            if parts.scheme == "https" and parts.hostname and not parts.username and not parts.password:
+                return resolved
+        except (AttributeError, ValueError):
+            continue
+    return None
