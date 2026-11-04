@@ -75,7 +75,7 @@ def check_page(html):
         raise ValueError("Retailer returned a bot check or access-denied page. Stop here.")
 
 
-def fetch_page(url):
+def fetch_page(url, timeout=25, warmup=True):
     """Fetch product page securely, handling retailer-specific network quirks & redirects."""
     from curl_cffi import requests as cffi_requests
 
@@ -91,10 +91,11 @@ def fetch_page(url):
                 "Accept-Language": "en-US,en;q=0.9",
                 "Accept-Encoding": "gzip, deflate, br",
             }
-            session.get("https://www.bestbuy.com", headers=headers, impersonate="safari_ios", timeout=15)
+            if warmup:
+                session.get("https://www.bestbuy.com", headers=headers, impersonate="safari_ios", timeout=min(15, timeout))
 
             response = session.get(
-                original_url, timeout=30, allow_redirects=True,
+                original_url, timeout=timeout, allow_redirects=True,
                 headers=headers, impersonate="safari_ios"
             )
         else:
@@ -103,17 +104,19 @@ def fetch_page(url):
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
                 "Accept-Language": "en-US,en;q=0.9",
             }
-            if retailer == "amazon":
+            if warmup and retailer == "amazon":
                 session.get("https://www.amazon.com", impersonate="chrome", headers=headers, timeout=15)
-            elif retailer == "walmart":
+            elif warmup and retailer == "walmart":
                 session.get("https://www.walmart.com", impersonate="chrome", headers=headers, timeout=15)
 
             response = session.get(
-                original_url, timeout=25, allow_redirects=True,
+                original_url, timeout=timeout, allow_redirects=True,
                 headers=headers, impersonate="chrome"
             )
     except Exception as e:
         raise ValueError(f"Page request failed or timed out: {e}") from None
+    finally:
+        session.close()
 
     if response.status_code != 200:
         raise ValueError(f"Retailer returned HTTP {response.status_code}; no record collected.")
@@ -542,11 +545,14 @@ def extract_product(html, final_url, category="laptops"):
     return record
 
 
-def upload_to_supabase(record):
+def upload_to_supabase(record, database=None, timeout=25):
     """Upsert the scraped tech product to public.products using the backend secret key."""
-    load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env", override=False)
-    supabase_url = os.environ.get("SUPABASE_URL")
-    supabase_key = os.environ.get("SUPABASE_SECRET_KEY")
+    if database is None:
+        load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env", override=False)
+        supabase_url = os.environ.get("SUPABASE_URL")
+        supabase_key = os.environ.get("SUPABASE_SECRET_KEY")
+    else:
+        supabase_url, supabase_key = database.url, database.secret_key
 
     if not supabase_url or not supabase_key:
         raise ValueError("Missing SUPABASE_URL or SUPABASE_SECRET_KEY in scraper/.env.")
@@ -575,7 +581,7 @@ def upload_to_supabase(record):
                 "Prefer": "resolution=merge-duplicates,return=minimal",
             },
             json=payload,
-            timeout=25,
+            timeout=timeout,
             allow_redirects=False,
         )
     except requests.RequestException:

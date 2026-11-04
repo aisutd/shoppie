@@ -28,4 +28,4 @@ typing-extensions==4.16.0
 urllib3==2.8.0
 
 # Optional standalone tech collector dependency (not imported by main.py).
-curl_cffi>=0.7,<1
+curl_cffi==0.13.0
