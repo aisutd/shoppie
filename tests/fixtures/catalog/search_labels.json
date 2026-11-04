@@ -1,8 +1,0 @@
-{
-  "source": "small synthetic labeled set; no real-world quality claim",
-  "queries": [
-    {"q": "Apple MacBook Air M5 16GB RAM 512GB SSD", "k": 2, "relevant_fixtures": ["fixture-1", "fixture-2"]},
-    {"q": "Apple MacBook Air M4 16GB RAM 512GB SSD", "k": 1, "relevant_fixtures": ["fixture-5"]},
-    {"q": "Lenovo IdeaPad AMD Ryzen 7 7730U 16GB RAM 512GB SSD", "k": 1, "relevant_fixtures": ["fixture-7"]}
-  ]
-}

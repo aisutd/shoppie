@@ -1,3 +1,0 @@
-# optional local planner; install only when using Ollama
--r requirements-ai.txt
-ollama>=0.6,<1

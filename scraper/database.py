@@ -77,6 +77,7 @@ def upsert_product(database: Database, product: Laptop):
         raise ValueError("Only a validated Laptop may be saved.")
     row = {
         "title": product.title, "price": str(product.price), "currency": product.currency,
+        "image_url": product.image_url,
         "product_url": product.product_url, "source": f"{product.retailer}.com",
         "category": "laptops", "scraped_at": product.observed_at.isoformat(),
     }
