@@ -76,21 +76,33 @@ class CollectedProduct(BaseModel):
 
 
 def infer_category(title):
-    """Classify from the actual title, never label all search results laptops."""
+    """Classify from title evidence; unknown products are not assumed electronic."""
     import re
 
     for category, pattern in (
+        ("toys-games", r"\b(?:toys?|shopkins|dolls?|action figures?|playsets?|plush|stuffed animals?|board games?|puzzles?)\b"),
+        ("kitchen-dining", r"\b(?:mugs?|cups?|tumblers?|drinkware|cookware|dinnerware|plates?|bowls?|kitchen)\b"),
+        ("home-garden", r"\b(?:furniture|bedding|garden|patio|decor|lamps?|rugs?|curtains?)\b"),
+        ("clothing", r"\b(?:shirts?|jackets?|shoes|sneakers|clothing|apparel)\b"),
+        ("office-supplies", r"\b(?:spiral notebooks?|binders?|pens?|paper|office supplies)\b"),
+        ("gaming", r"\b(?:video games?|game controllers?|playstation|xbox|nintendo switch)\b"),
         ("headphones", r"headphones?|earbuds?|airpods"),
         ("phones", r"iphone|smartphone|galaxy\s+s\d|pixel\s+\d"),
         ("tablets", r"ipad|tablet"),
         ("monitors", r"monitor"),
+        ("laptop-accessories", r"\b(?:laptop|notebook|macbook)\s+(?:cases?|sleeves?|bags?|covers?|stands?)\b"),
         ("laptops", r"laptop|notebook|macbook|chromebook|thinkpad|zenbook|vivobook|ideapad"),
         ("televisions", r"television|\btv\b"),
         ("keyboards", r"keyboard"),
+        ("mice", r"\b(?:mouse|mice)\b"),
+        ("cameras", r"\bcameras?\b"),
+        ("speakers", r"\b(?:speakers?|soundbars?)\b"),
+        ("storage", r"\b(?:ssds?|hard drives?|flash drives?)\b"),
+        ("computer-accessories", r"\b(?:chargers?|adapters?|docks?|hubs?|webcams?)\b"),
     ):
         if re.search(pattern, title or "", re.I):
             return category
-    return "electronics"
+    return "other"
 
 
 def collect_live_products(query, database, limit=MAX_PRODUCTS):

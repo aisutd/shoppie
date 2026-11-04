@@ -30,7 +30,11 @@ function App() {
           </div>
         </section>
         {searchResults ? (
-          <SearchResults search={searchResults} onBack={() => setSearchResults(null)} />
+          <SearchResults
+            search={searchResults}
+            onBack={() => setSearchResults(null)}
+            onRefined={setSearchResults}
+          />
         ) : (
           <>
             <SearchSection onResults={setSearchResults} />

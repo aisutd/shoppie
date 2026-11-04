@@ -129,7 +129,10 @@ def test_busy_collection_uses_catalog_fallback():
 
 
 @pytest.mark.parametrize("title,category", [("Apple iPhone 15", "phones"),
-    ("Sony WH1000XM5 Headphones", "headphones"), ("Apple MacBook Air", "laptops")])
+    ("Sony WH1000XM5 Headphones", "headphones"), ("Apple MacBook Air", "laptops"),
+    ("License 2 Play - Shopkins Happy Places S2 Delivery Pack", "toys-games"),
+    ("Silver Buffalo Peanuts Halloween Mummy Snoopy Ceramic Soup Mug", "kitchen-dining"),
+    ("Everyday Ceramic Vase", "other")])
 def test_categories_are_based_on_collected_titles(title, category):
     assert live.infer_category(title) == category
 
@@ -181,6 +184,77 @@ def test_endpoint_returns_products_and_collection_status(monkeypatch, candidate)
     handler.do_POST()
     search.assert_called_once_with("MacBook M5")
     handler.send_json.assert_called_once_with(200, response)
+
+
+def test_homepage_groups_use_current_catalog_records(candidate):
+    products = [
+        {
+            **candidate,
+            "id": str(index),
+            "title": f"Catalog product {index}",
+            "price": str(100 + index),
+            "scraped_at": f"2026-11-0{index + 1}T12:00:00Z",
+        }
+        for index in range(7)
+    ]
+
+    collections = api.deal_collections(products)
+
+    assert [group["id"] for group in collections] == [
+        "all-time-lows", "deep-discounts", "new-releases",
+    ]
+    assert [product["id"] for product in collections[0]["products"]] == [
+        "0", "1", "2", "3", "4", "5",
+    ]
+    assert collections[1]["products"] == []
+    assert [product["id"] for product in collections[2]["products"]] == [
+        "6", "5", "4", "3", "2", "1",
+    ]
+
+
+@pytest.mark.parametrize(
+    "title,category",
+    [
+        ("License 2 Play - Shopkins Happy Places S2 Delivery Pack", "toys-games"),
+        ("Silver Buffalo Peanuts Halloween Mummy Snoopy Ceramic Soup Mug", "kitchen-dining"),
+    ],
+)
+def test_homepage_corrects_legacy_electronics_category(candidate, title, category):
+    candidate.update(category="electronics", title=title)
+
+    products = api.deal_collections([candidate])[0]["products"]
+
+    assert products[0]["category"] == category
+    assert candidate["category"] == "electronics"
+
+
+def test_search_response_corrects_legacy_electronics_category(monkeypatch, candidate):
+    candidate.update(category="electronics", title="Shopkins Happy Places Delivery Pack")
+    monkeypatch.setattr(api, "load_database_config", lambda: DATABASE)
+    monkeypatch.setattr(api, "collect_live_products", lambda *args: (
+        [], {"saved": 0, "errors": [], "result_source": "catalog"},
+    ))
+    monkeypatch.setattr(api, "load_catalog", lambda *args: [candidate])
+
+    response = api.search_response("Shopkins")
+
+    assert response["products"][0]["category"] == "toys-games"
+
+
+def test_homepage_deals_endpoint_reads_database_catalog(monkeypatch, candidate):
+    monkeypatch.setattr(api, "load_database_config", Mock(return_value=DATABASE))
+    monkeypatch.setattr(api, "load_catalog", Mock(return_value=[candidate]))
+    handler = object.__new__(api.SearchHandler)
+    handler.path = "/api/deals"
+    handler.send_json = Mock()
+
+    handler.do_GET()
+
+    api.load_catalog.assert_called_once_with(DATABASE)
+    status, payload = handler.send_json.call_args.args
+    assert status == 200
+    assert payload["collections"][0]["products"] == [candidate]
+    assert payload["collections"][1]["products"] == []
 
 
 def test_endpoint_rejects_empty_query_before_any_collection(monkeypatch):

@@ -5,6 +5,7 @@ import math
 import re
 import threading
 import time
+from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from difflib import SequenceMatcher
 from functools import lru_cache
@@ -13,7 +14,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import requests
 
 from scraper.config import ConfigurationError, load_database_config
-from scraper.live_search import collect_live_products
+from scraper.live_search import collect_live_products, infer_category
 from scraper.search_intent import apply_requirements, listing_type, parse_requirements, product_type
 
 
@@ -117,6 +118,59 @@ def load_catalog(database):
         _catalog_cache["products"] = products
         _catalog_cache["expires_at"] = time.monotonic() + CATALOG_CACHE_SECONDS
         return products
+
+
+def correct_legacy_categories(products):
+    """Replace the old catch-all electronics label when title evidence disagrees."""
+    return [
+        {
+            **product,
+            "category": infer_category(product.get("title"))
+            if product.get("category") == "electronics"
+            else product.get("category"),
+        }
+        for product in products
+    ]
+
+
+def deal_collections(products):
+    """Build homepage groups using only current catalog price and observation data."""
+    products = correct_legacy_categories(products)
+    priced_products = []
+    for product in products:
+        try:
+            price = Decimal(str(product["price"]))
+        except (KeyError, InvalidOperation, TypeError, ValueError):
+            continue
+        if price.is_finite() and price > 0:
+            priced_products.append((price, product))
+
+    lowest_prices = [
+        product for _, product in sorted(
+            priced_products, key=lambda item: (item[0], item[1].get("title", "").casefold())
+        )[:6]
+    ]
+
+    def observed_timestamp(product):
+        observed_at = product.get("scraped_at")
+        if not isinstance(observed_at, str):
+            return float("-inf")
+        try:
+            parsed = datetime.fromisoformat(observed_at.replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return parsed.timestamp()
+        except ValueError:
+            return float("-inf")
+
+    newest_observations = sorted(
+        products, key=observed_timestamp, reverse=True
+    )[:6]
+    return [
+        {"id": "all-time-lows", "products": lowest_prices},
+        {"id": "deep-discounts", "products": []},
+        {"id": "new-releases", "products": newest_observations},
+    ]
 
 
 def normalize_tokens(value):
@@ -610,6 +664,7 @@ def search_response(query):
             products = search_products(query, allow_model=False)
             collection["errors"].append("Ollama query expansion was unavailable; only direct catalog matches are shown.")
     collection["matched"] = len(products)
+    products = correct_legacy_categories(products)
     intent = parse_requirements(query)
     collection["requirements"] = {
         "product_type": intent["product_type"],
@@ -676,6 +731,25 @@ class SearchHandler(BaseHTTPRequestHandler):
             self.send_json(502, {"error": "The local model returned an invalid response. Try again."})
         except Exception:
             self.send_json(500, {"error": "Local search failed. Check the API terminal for details."})
+
+    def do_GET(self):
+        if self.path != "/api/deals":
+            self.send_json(404, {"error": "Not found."})
+            return
+        try:
+            database = load_database_config()
+            collections = deal_collections(load_catalog(database))
+            self.send_json(200, {"collections": collections})
+        except ConfigurationError as error:
+            self.send_json(503, {"error": str(error)})
+        except requests.ConnectionError:
+            self.send_json(503, {"error": "Could not connect to Supabase. Check its availability."})
+        except requests.Timeout:
+            self.send_json(504, {"error": "Loading homepage products timed out. Try again in a moment."})
+        except requests.HTTPError:
+            self.send_json(502, {"error": "Supabase rejected the homepage product request. Check its table access and credentials."})
+        except requests.RequestException:
+            self.send_json(502, {"error": "The homepage product request failed. Check the local API and Supabase connection."})
 
     def log_message(self, format, *args):
         print(f"[local-search] {format % args}")

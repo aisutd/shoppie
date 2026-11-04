@@ -48,6 +48,14 @@ subset of the products that match the query and any explicit filters.
 Keep `SUPABASE_URL` and `SUPABASE_SECRET_KEY` in `scraper/.env`; the key is
 read only by the local Python API and is never sent to the browser.
 
+The homepage's “All-time low prices,” “Deep discounts,” and “New releases”
+sections load real rows from the catalog through the local `/api/deals` endpoint.
+The catalog stores current prices and observation times, not price history,
+regular prices, or release dates. Accordingly, the first section ranks current
+catalog prices, verified discounts are not shown until comparison-price data is
+available, and the last section shows recently observed products rather than
+claiming a verified release date.
+
 1. Install Ollama, then download the model with `ollama pull qwen2.5-coder:1.5b`.
 2. Install the Python dependencies with `python -m pip install -r requirements.txt`.
 3. Start the API from the repository root with `python local_search_api.py`.
