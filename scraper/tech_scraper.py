@@ -75,7 +75,7 @@ def check_page(html):
         raise ValueError("Retailer returned a bot check or access-denied page. Stop here.")
 
 
-def fetch_page(url):
+def fetch_page(url, timeout=25, warmup=True):
     """Fetch product page securely, handling retailer-specific network quirks & redirects."""
     from curl_cffi import requests as cffi_requests
 
@@ -91,10 +91,11 @@ def fetch_page(url):
                 "Accept-Language": "en-US,en;q=0.9",
                 "Accept-Encoding": "gzip, deflate, br",
             }
-            session.get("https://www.bestbuy.com", headers=headers, impersonate="safari_ios", timeout=15)
+            if warmup:
+                session.get("https://www.bestbuy.com", headers=headers, impersonate="safari_ios", timeout=min(15, timeout))
 
             response = session.get(
-                original_url, timeout=30, allow_redirects=True,
+                original_url, timeout=timeout, allow_redirects=True,
                 headers=headers, impersonate="safari_ios"
             )
         else:
@@ -103,17 +104,19 @@ def fetch_page(url):
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
                 "Accept-Language": "en-US,en;q=0.9",
             }
-            if retailer == "amazon":
+            if warmup and retailer == "amazon":
                 session.get("https://www.amazon.com", impersonate="chrome", headers=headers, timeout=15)
-            elif retailer == "walmart":
+            elif warmup and retailer == "walmart":
                 session.get("https://www.walmart.com", impersonate="chrome", headers=headers, timeout=15)
 
             response = session.get(
-                original_url, timeout=25, allow_redirects=True,
+                original_url, timeout=timeout, allow_redirects=True,
                 headers=headers, impersonate="chrome"
             )
     except Exception as e:
         raise ValueError(f"Page request failed or timed out: {e}") from None
+    finally:
+        session.close()
 
     if response.status_code != 200:
         raise ValueError(f"Retailer returned HTTP {response.status_code}; no record collected.")
@@ -178,6 +181,58 @@ def text(soup, selector):
 def meta(soup, field):
     tag = soup.select_one(f'meta[property="product:{field}"]') or soup.select_one(f'meta[property="og:{field}"]') or soup.select_one(f'meta[name="{field}"]')
     return tag.get("content") if tag else None
+
+
+def product_image_url(soup, product, page_url):
+    candidates = []
+
+    def add_json_image(value):
+        if isinstance(value, str):
+            candidates.append(value)
+        elif isinstance(value, list):
+            for item in value:
+                add_json_image(item)
+        elif isinstance(value, dict):
+            for key in ("url", "contentUrl", "thumbnailUrl"):
+                if value.get(key):
+                    add_json_image(value[key])
+
+    if product:
+        add_json_image(product.get("image"))
+
+    for selector in (
+        'meta[property="og:image"]',
+        'meta[property="og:image:secure_url"]',
+        'meta[name="twitter:image"]',
+    ):
+        tag = soup.select_one(selector)
+        if tag and tag.get("content"):
+            candidates.append(tag["content"])
+
+    for selector in (
+        "#landingImage",
+        'img[itemprop="image"]',
+        '[data-test*="product-image"] img',
+        '[data-testid*="hero"] img',
+        "main img",
+    ):
+        image = soup.select_one(selector)
+        if not image:
+            continue
+        for attribute in ("data-src", "data-original", "src", "data-srcset", "srcset"):
+            value = image.get(attribute)
+            if value:
+                candidates.append(value.split(",")[0].strip().split()[0])
+
+    for candidate in candidates:
+        try:
+            resolved = urljoin(page_url, candidate.strip())
+            parts = urlsplit(resolved)
+            if parts.scheme == "https" and parts.hostname and not parts.username and not parts.password:
+                return resolved
+        except (AttributeError, ValueError):
+            continue
+    return None
 
 
 def normalize_category(category):
@@ -378,6 +433,7 @@ def extract_product(html, final_url, category="laptops"):
 
     # 1. JSON-LD structured data extraction
     product = main_product(soup, final_url)
+    record["image_url"] = product_image_url(soup, product, final_url)
     if product:
         record["title"] = product.get("name")
         offers = product.get("offers")
@@ -489,11 +545,14 @@ def extract_product(html, final_url, category="laptops"):
     return record
 
 
-def upload_to_supabase(record):
+def upload_to_supabase(record, database=None, timeout=25):
     """Upsert the scraped tech product to public.products using the backend secret key."""
-    load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env", override=False)
-    supabase_url = os.environ.get("SUPABASE_URL")
-    supabase_key = os.environ.get("SUPABASE_SECRET_KEY")
+    if database is None:
+        load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env", override=False)
+        supabase_url = os.environ.get("SUPABASE_URL")
+        supabase_key = os.environ.get("SUPABASE_SECRET_KEY")
+    else:
+        supabase_url, supabase_key = database.url, database.secret_key
 
     if not supabase_url or not supabase_key:
         raise ValueError("Missing SUPABASE_URL or SUPABASE_SECRET_KEY in scraper/.env.")
@@ -504,6 +563,7 @@ def upload_to_supabase(record):
     payload = {
         "title": record["title"],
         "description": record.get("description"),
+        "image_url": record.get("image_url"),
         "price": record["price"],
         "currency": record["currency"],
         "product_url": record["product_url"],
@@ -521,7 +581,7 @@ def upload_to_supabase(record):
                 "Prefer": "resolution=merge-duplicates,return=minimal",
             },
             json=payload,
-            timeout=25,
+            timeout=timeout,
             allow_redirects=False,
         )
     except requests.RequestException:

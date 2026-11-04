@@ -396,6 +396,12 @@ These are the four command modes. From the repository root in PowerShell:
 .\.venv\Scripts\python.exe scraper/main.py --limit 1 --save
 ```
 
+For one-at-a-time uploads, run `scraper/ShoppieUploader.exe`; it opens a
+terminal, prompts for a product URL, and prints the validation and upload result.
+The executable reads `scraper/.env` beside it. To rebuild it on Windows, install
+PyInstaller in `.venv` with `\.\.venv\Scripts\python.exe -m pip install pyinstaller`,
+then run `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scraper\build_uploader.ps1`.
+
 Inside `scraper/`, use `..\.venv\Scripts\python.exe main.py` followed by the
 same flags. With the environment activated or its Python on PATH, these are
 `python main.py`, `python main.py --check-db`, `python main.py --save`, and

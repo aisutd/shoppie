@@ -4,6 +4,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -35,6 +36,7 @@ class Laptop(BaseModel):
     title: str = Field(min_length=5, max_length=1000)
     price: Decimal = Field(gt=0, max_digits=12, decimal_places=2, allow_inf_nan=False)
     currency: Literal["USD"]
+    image_url: str | None = None
     availability: str | None = None
     seller: str | None = Field(default=None, max_length=300)
     discount: None = None  # Not extracted in this lesson. Unknown is not zero.
@@ -56,6 +58,21 @@ class Laptop(BaseModel):
     def exact_price(cls, value):
         if isinstance(value, bool):
             raise ValueError("price must be a number, not a boolean")
+        return value
+
+    @field_validator("image_url", mode="before")
+    @classmethod
+    def secure_image_url(cls, value):
+        if value is None or value == "":
+            return None
+        if not isinstance(value, str):
+            raise ValueError("image_url must be an HTTPS URL or null")
+        try:
+            parts = urlsplit(value)
+        except ValueError:
+            raise ValueError("image_url must be an HTTPS URL or null") from None
+        if parts.scheme != "https" or not parts.hostname or parts.username or parts.password:
+            raise ValueError("image_url must be an HTTPS URL or null")
         return value
 
     @field_validator("availability", mode="before")
