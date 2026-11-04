@@ -24,6 +24,7 @@ and API access still need verification in the actual shared project.
 | `id` | Omit | PostgreSQL generates a UUID on insert; keep it on update. |
 | `title` | Extracted product title | SQL requires at least 3 non-whitespace characters. |
 | `description` | `record.get("description")` | Optional description extracted from the product page; NULL when unavailable. |
+| `image_url` | `record.get("image_url")` | Optional HTTPS URL extracted from product JSON-LD, Open Graph/Twitter metadata, or a product image element; NULL when unavailable. |
 | `price` | `str(product.price)` | Exact Decimal serialization; stored as `numeric(12,2)`. |
 | `currency` | `product.currency` | Required, explicitly USD; no SQL fallback/default. |
 | `product_url` | `product.product_url` | Cleaned HTTPS product URL; unique upsert key. |

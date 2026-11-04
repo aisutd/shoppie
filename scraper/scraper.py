@@ -328,11 +328,12 @@ def extract_product(html, url):
     record = {
         "retailer": retailer, "product_id": product_id, "product_url": url,
         "title": None, "price": None, "currency": None, "availability": None,
-        "seller": None, "discount": None,
+        "seller": None, "discount": None, "image_url": None,
         "observed_at": datetime.now(timezone.utc).isoformat(),
         "extraction_method": "html",
     }
     product = main_product(soup, url)
+    record["image_url"] = product_image_url(soup, product, url)
     if product:
         record["extraction_method"] = "json-ld"
         record["title"] = product.get("name")
@@ -387,3 +388,55 @@ def extract_product(html, url):
         record["currency"] = record["currency"] or currency
         record["availability"] = record["availability"] or availability
     return record
+
+
+def product_image_url(soup, product, page_url):
+    candidates = []
+
+    def add_json_image(value):
+        if isinstance(value, str):
+            candidates.append(value)
+        elif isinstance(value, list):
+            for item in value:
+                add_json_image(item)
+        elif isinstance(value, dict):
+            for key in ("url", "contentUrl", "thumbnailUrl"):
+                if value.get(key):
+                    add_json_image(value[key])
+
+    if product:
+        add_json_image(product.get("image"))
+
+    for selector in (
+        'meta[property="og:image"]',
+        'meta[property="og:image:secure_url"]',
+        'meta[name="twitter:image"]',
+    ):
+        tag = soup.select_one(selector)
+        if tag and tag.get("content"):
+            candidates.append(tag["content"])
+
+    for selector in (
+        "#landingImage",
+        'img[itemprop="image"]',
+        '[data-test*="product-image"] img',
+        '[data-testid*="hero"] img',
+        "main img",
+    ):
+        image = soup.select_one(selector)
+        if not image:
+            continue
+        for attribute in ("data-src", "data-original", "src", "data-srcset", "srcset"):
+            value = image.get(attribute)
+            if value:
+                candidates.append(value.split(",")[0].strip().split()[0])
+
+    for candidate in candidates:
+        try:
+            resolved = urljoin(page_url, candidate.strip())
+            parts = urlsplit(resolved)
+            if parts.scheme == "https" and parts.hostname and not parts.username and not parts.password:
+                return resolved
+        except (AttributeError, ValueError):
+            continue
+    return None

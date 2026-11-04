@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 
-const links = [
+const homeLinks = [
   { label: 'Home', href: '#home' },
   { label: 'Search products', href: '#search' },
   { label: 'Discover deals', href: '#deals' },
 ]
 
-function Navbar() {
+function Navbar({ isShowingResults = false, onBack }) {
   const [open, setOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
 
@@ -34,6 +34,9 @@ function Navbar() {
   }, [open])
 
   const closeMenu = () => setOpen(false)
+  const links = isShowingResults
+    ? [homeLinks[0], { label: 'New search', href: '#search-results', onClick: onBack }]
+    : homeLinks
   const navigateToSection = () => {
     window.cancelSmoothScroll?.()
     closeMenu()
@@ -94,7 +97,13 @@ function Navbar() {
             <a
               key={link.href}
               href={link.href}
-              onClick={navigateToSection}
+              onClick={(event) => {
+                navigateToSection()
+                if (link.onClick) {
+                  event.preventDefault()
+                  link.onClick()
+                }
+              }}
               tabIndex={open ? 0 : -1}
               className="group flex items-center justify-between border-b border-blue-100/10 py-5 text-xl font-medium text-white transition-colors hover:text-blue-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300"
               style={{ transitionDelay: open ? `${index * 45}ms` : '0ms' }}
