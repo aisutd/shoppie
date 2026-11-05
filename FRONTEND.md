@@ -21,11 +21,13 @@ npm run preview
 
 ## Local AI product search
 
-Each `/api/search` request first searches Best Buy for up to eight distinct product links,
-collects their product pages using the existing tech scraper, validates the
-records, and upserts them into `public.products`. The current matching logic then
-ranks this request's collected candidates, so a five-minute catalog cache cannot
-hide new listings. No additional database tables are required.
+Each `/api/search` request searches Best Buy and Walmart and selects up to eight
+distinct candidates across both retailers. Best Buy candidates are collected
+from their product pages; Walmart candidates use the title, current price,
+image, and product URL shown in Walmart's search result cards. The collector
+validates records and upserts them into `public.products`. The current matching
+logic then ranks this request's collected candidates, so a five-minute catalog
+cache cannot hide new listings. No additional database tables are required.
 
 When discovery is blocked, fails, or returns no products, the API searches the
 stored catalog instead. The response's `collection` object and the result-page
@@ -48,13 +50,20 @@ subset of the products that match the query and any explicit filters.
 Keep `SUPABASE_URL` and `SUPABASE_SECRET_KEY` in `scraper/.env`; the key is
 read only by the local Python API and is never sent to the browser.
 
-The homepage's “All-time low prices,” “Deep discounts,” and “New releases”
-sections load real rows from the catalog through the local `/api/deals` endpoint.
+The homepage's “Lowest current prices,” “Deep discounts,” and “Recently observed”
+sections load catalog rows through the local `/api/deals` endpoint. The same
+endpoint searches Best Buy and Walmart for laptops, monitors, phones,
+headphones, gaming controllers, toys, and kitchen items. Retailer shelves show
+the current search-card listings, and the deep-discounts shelf includes only
+offers where a retailer explicitly provides a higher regular price. These live
+homepage picks are not written to the catalog. Search results are grouped by
+Best Buy and Walmart source, with up to eight products from each retailer.
+
 The catalog stores current prices and observation times, not price history,
 regular prices, or release dates. Accordingly, the first section ranks current
-catalog prices, verified discounts are not shown until comparison-price data is
-available, and the last section shows recently observed products rather than
-claiming a verified release date.
+catalog prices, verified discounts use only retailer comparison prices, and the
+last section shows recently observed products rather than claiming a verified
+release date.
 
 1. Install Ollama, then download the model with `ollama pull qwen2.5-coder:1.5b`.
 2. Install the Python dependencies with `python -m pip install -r requirements.txt`.
@@ -67,16 +76,18 @@ forwards `/api` requests to it.
 
 ## Live discovery and collection
 
-Transport recovery: when a product detail request fails at the network layer,
-the collector searches the observed URL's model-name keywords on Best Buy's
-public search endpoint. It accepts a fallback only when a card has the same
-product ID/variant and a single explicit current customer price. React streamed
-fragments are linked using their explicit boundary/segment IDs; no JavaScript
-is executed and no page-wide first price is guessed. Missing or ambiguous prices
-are rejected. CAPTCHA/HTTP rejections are not retried. Recovered counts are
-reported separately; product validation, specification filtering and Supabase
-upserts remain unchanged. Search cards may omit specs, so some exact requests
-can still legitimately return no verified matches.
+Transport recovery: when a Best Buy product detail request fails at the network
+layer, the collector searches the observed URL's model-name keywords on Best
+Buy's public search endpoint. It accepts a fallback only when a card has the
+same product ID/variant and a single explicit current customer price. React
+streamed fragments are linked using their explicit boundary/segment IDs; no
+JavaScript is executed and no page-wide first price is guessed. Walmart records
+are taken from product cards in its public search results, avoiding a separate
+detail-page request that may redirect to Walmart's `/blocked` route. Both
+retailers' products use the same record validation, specification filtering,
+and Supabase upserts. Missing or ambiguous prices are rejected; CAPTCHA and
+HTTP rejections are not retried. Search cards may omit specs, so some exact
+requests can still legitimately return no verified matches.
 
 Product-type intent is now recognized independently of database contents by
 `scraper/search_intent.py`. Monitor searches cannot return laptops just because
@@ -92,6 +103,8 @@ is a bounded rules-based improvement, not unrestricted natural-language reasonin
 
 - `scraper/bestbuy_search.py`: constructs the encoded keyword search URL and
   extracts Best Buy product links from product cards or JSON-LD ItemList data.
+- `scraper/walmart_search.py`: extracts validated Walmart product URLs and
+  current listing details from rendered search-result cards.
 - `scraper/live_search.py`: coordinates bounded collection, validates records
   with a tech-product model, infers categories from collected titles, and saves
   using `tech_scraper.upload_to_supabase()` without terminal prompts.
@@ -122,18 +135,19 @@ Alternate searches discover candidates only: original chip, RAM and budget
 filters still determine which cards appear. Multiple results are not guaranteed
 when the retailer exposes only one compatible product or blocks collection.
 
-The flow is synchronous and limited to eight distinct product pages, with request
-timeouts and a scheduling budget of 55 seconds for collection. Timeouts are not
-a hard wall-clock guarantee; optional Ollama processing can add up to 90 seconds.
+The flow is synchronous and limited to eight distinct product candidates, with
+request timeouts and a scheduling budget of 55 seconds for collection. Timeouts
+are not a hard wall-clock guarantee; optional Ollama processing can add up to 90 seconds.
 One collector runs at a time per API process; a concurrent request receives
 stored catalog results with a busy notice. The original request remains the
 source for RAM/budget checks even when budget words are removed for discovery.
 
-Only Best Buy discovery is implemented. The discovery adapter must be adjusted
+Best Buy and Walmart discovery are implemented. Their adapters must be adjusted
 if retailer markup changes. Blocked pages and unexpected layouts are failures,
-not fabricated listings. Existing product extraction and fuzzy matching retain
-their limitations; this change does not guarantee exact specification matching
-or that a source price remains available. A browser-rendered search adapter,
+not fabricated listings; the collector does not try to bypass retailer
+verification. Existing product extraction and fuzzy matching retain their
+limitations; this change does not guarantee exact specification matching or
+that a source price remains available. A browser-rendered search adapter,
 durable jobs and additional retailers are separate extensions.
 
 Offline verification:

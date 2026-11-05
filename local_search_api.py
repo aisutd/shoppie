@@ -1,10 +1,12 @@
 """Local-only product search API backed by Ollama and the Supabase products table."""
 
 import json
+import logging
 import math
 import re
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from difflib import SequenceMatcher
@@ -14,12 +16,15 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import requests
 
 from scraper.config import ConfigurationError, load_database_config
-from scraper.live_search import collect_live_products, infer_category
+from scraper.live_search import CollectedProduct, collect_live_products, infer_category
+from scraper.bestbuy_search import DiscoveryError, discover_bestbuy_products
+from scraper.walmart_search import WalmartDiscoveryError, discover_walmart_products
 from scraper.search_intent import apply_requirements, listing_type, parse_requirements, product_type
 
 
 HOST = "127.0.0.1"
 PORT = 8001
+logger = logging.getLogger(__name__)
 OLLAMA_URL = "http://127.0.0.1:11434/api/chat"
 MODEL = "qwen2.5-coder:1.5b"
 MAX_BODY_BYTES = 8_192
@@ -31,6 +36,24 @@ SEARCH_STOP_WORDS = {
     "a", "an", "and", "at", "best", "find", "for", "get", "give",
     "good", "in", "least", "looking", "me", "my", "need", "of", "on", "please",
     "recommend", "search", "show", "suggest", "the", "to", "want", "with",
+}
+HOMEPAGE_SEARCHES = (
+    "laptop",
+    "monitor",
+    "cell phone",
+    "headphones",
+    "gaming controller",
+    "toys",
+    "coffee mug",
+)
+HOMEPAGE_CATEGORIES = {
+    "laptop": "laptops",
+    "monitor": "monitors",
+    "cell phone": "phones",
+    "headphones": "headphones",
+    "gaming controller": "gaming",
+    "toys": "toys-games",
+    "coffee mug": "kitchen-dining",
 }
 PRICE_AMOUNT = r"\$?\s*((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,2})?)\s*(?:dollars?|usd)?"
 _catalog_cache = {"expires_at": 0, "products": []}
@@ -133,8 +156,8 @@ def correct_legacy_categories(products):
     ]
 
 
-def deal_collections(products):
-    """Build homepage groups using only current catalog price and observation data."""
+def deal_collections(products, bestbuy_products=(), walmart_products=()):
+    """Build homepage groups from the catalog and verified retailer offers."""
     products = correct_legacy_categories(products)
     priced_products = []
     for product in products:
@@ -166,11 +189,111 @@ def deal_collections(products):
     newest_observations = sorted(
         products, key=observed_timestamp, reverse=True
     )[:6]
+    live_products = [*bestbuy_products, *walmart_products]
+    discounted_products = []
+    for product in live_products:
+        try:
+            current_price = Decimal(str(product["price"]))
+            regular_price = Decimal(str(product["regular_price"]))
+        except (KeyError, InvalidOperation, TypeError, ValueError):
+            continue
+        if (
+            current_price.is_finite()
+            and regular_price.is_finite()
+            and regular_price > current_price > 0
+        ):
+            discounted_products.append(
+                {
+                    **product,
+                    "savings_percent": round(
+                        float((regular_price - current_price) / regular_price * 100),
+                        1,
+                    ),
+                }
+            )
+    discounted_products.sort(
+        key=lambda product: (
+            -product["savings_percent"],
+            product["title"].casefold(),
+        )
+    )
     return [
         {"id": "all-time-lows", "products": lowest_prices},
-        {"id": "deep-discounts", "products": []},
+        {"id": "deep-discounts", "products": discounted_products[:12]},
         {"id": "new-releases", "products": newest_observations},
+        {"id": "bestbuy-picks", "products": list(bestbuy_products)},
+        {"id": "walmart-picks", "products": list(walmart_products)},
     ]
+
+
+def discover_homepage_products():
+    """Collect a bounded spread of current products from both retailers."""
+    searches = []
+    for query in HOMEPAGE_SEARCHES:
+        searches.append(("bestbuy.com", query))
+        searches.append(("walmart.com", query))
+
+    errors = []
+
+    def discover(search):
+        source, query = search
+        try:
+            if source == "bestbuy.com":
+                products = discover_bestbuy_products(query, limit=4)
+            else:
+                products = discover_walmart_products(query, limit=4)
+            return source, query, products, None
+        except (DiscoveryError, WalmartDiscoveryError) as error:
+            logger.warning(
+                "%s homepage discovery for %s failed (%s)",
+                source,
+                query,
+                error.code,
+            )
+            return source, query, [], str(error)
+
+    by_retailer = {"bestbuy.com": [], "walmart.com": []}
+    seen_urls = set()
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        for source, query, products, error in pool.map(discover, searches):
+            if error:
+                errors.append(f"{source} ({query}): {error}")
+            for product in products:
+                url = product["product_url"]
+                if url in seen_urls:
+                    continue
+                seen_urls.add(url)
+                category = infer_category(product["title"])
+                product["category"] = (
+                    HOMEPAGE_CATEGORIES[query]
+                    if category == "other"
+                    else category
+                )
+                by_retailer[source].append(product)
+
+    return by_retailer["bestbuy.com"], by_retailer["walmart.com"], errors
+
+
+def validate_retailer_products(products):
+    """Validate live homepage records while retaining verified compare prices."""
+    validated = []
+    for product in products:
+        record = CollectedProduct.model_validate(product).model_dump(mode="json")
+        try:
+            regular_price = Decimal(str(product.get("regular_price")))
+            current_price = Decimal(str(record["price"]))
+        except (InvalidOperation, TypeError, ValueError):
+            regular_price = None
+            current_price = None
+        if (
+            regular_price is not None
+            and regular_price.is_finite()
+            and current_price is not None
+            and regular_price > current_price
+        ):
+            record["regular_price"] = format(regular_price, ".2f")
+        validated.append(record)
+    return validated
 
 
 def normalize_tokens(value):
@@ -630,7 +753,7 @@ def search_with_model_terms(
 
 
 def search_response(query):
-    """Collect fresh Best Buy candidates, save them, then apply existing ranking."""
+    """Collect fresh retailer candidates, save them, then apply existing ranking."""
     database = load_database_config()
     _, discovery_query = parse_cheap_preference(query)
     _, discovery_query = parse_price_condition(discovery_query)
@@ -680,6 +803,26 @@ def search_response(query):
     return {"products": products, "collection": collection}
 
 
+def walmart_products_response(query):
+    """Return validated Walmart search-card results for the homepage."""
+    records = discover_walmart_products(query, limit=6)
+    products = []
+    for record in records:
+        record["category"] = infer_category(record["title"])
+        products.append(CollectedProduct.model_validate(record).model_dump(mode="json"))
+    return {"products": products}
+
+
+def bestbuy_products_response(query):
+    """Return validated Best Buy search-card results for the homepage."""
+    records = discover_bestbuy_products(query, limit=6)
+    products = []
+    for record in records:
+        record["category"] = infer_category(record["title"])
+        products.append(CollectedProduct.model_validate(record).model_dump(mode="json"))
+    return {"products": products}
+
+
 class SearchHandler(BaseHTTPRequestHandler):
     def send_json(self, status, payload):
         encoded = json.dumps(payload).encode("utf-8")
@@ -691,7 +834,11 @@ class SearchHandler(BaseHTTPRequestHandler):
         self.wfile.write(encoded)
 
     def do_POST(self):
-        if self.path != "/api/search":
+        if self.path not in {
+            "/api/search",
+            "/api/bestbuy-search",
+            "/api/walmart-search",
+        }:
             self.send_json(404, {"error": "Not found."})
             return
         try:
@@ -704,7 +851,12 @@ class SearchHandler(BaseHTTPRequestHandler):
             if not isinstance(query, str) or not query.strip() or len(query) > 300:
                 self.send_json(400, {"error": "Enter a search query under 300 characters."})
                 return
-            self.send_json(200, search_response(query.strip()))
+            if self.path == "/api/bestbuy-search":
+                self.send_json(200, bestbuy_products_response(query.strip()))
+            elif self.path == "/api/walmart-search":
+                self.send_json(200, walmart_products_response(query.strip()))
+            else:
+                self.send_json(200, search_response(query.strip()))
         except ConfigurationError as error:
             self.send_json(503, {"error": str(error)})
         except requests.ConnectionError as error:
@@ -727,6 +879,8 @@ class SearchHandler(BaseHTTPRequestHandler):
                 message = "Supabase rejected the search request. Check its table access and credentials."
                 status = 502
             self.send_json(status, {"error": message})
+        except (DiscoveryError, WalmartDiscoveryError) as error:
+            self.send_json(502, {"error": str(error)})
         except (json.JSONDecodeError, ValueError):
             self.send_json(502, {"error": "The local model returned an invalid response. Try again."})
         except Exception:
@@ -738,8 +892,24 @@ class SearchHandler(BaseHTTPRequestHandler):
             return
         try:
             database = load_database_config()
-            collections = deal_collections(load_catalog(database))
-            self.send_json(200, {"collections": collections})
+            catalog = load_catalog(database)
+            bestbuy_products, walmart_products, discovery_errors = (
+                discover_homepage_products()
+            )
+            bestbuy_products = validate_retailer_products(bestbuy_products)
+            walmart_products = validate_retailer_products(walmart_products)
+            collections = deal_collections(
+                catalog,
+                bestbuy_products=bestbuy_products,
+                walmart_products=walmart_products,
+            )
+            self.send_json(
+                200,
+                {
+                    "collections": collections,
+                    "discovery_errors": discovery_errors,
+                },
+            )
         except ConfigurationError as error:
             self.send_json(503, {"error": str(error)})
         except requests.ConnectionError:

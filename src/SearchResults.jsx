@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { getProductDescription } from './productDescription'
 
 const categoryIcons = {
   audio: '🎧',
@@ -31,7 +32,7 @@ function ProductArtwork({ product, className, showSource = false }) {
           loading="lazy"
           decoding="async"
           onError={() => setImageFailed(true)}
-          className="h-full w-full object-contain p-6"
+          className="h-full w-full object-contain p-4"
         />
       ) : (
         <span className="text-7xl text-slate-400" aria-hidden="true">{getIcon(product.category)}</span>
@@ -49,6 +50,19 @@ function formatPrice(price, currency = 'USD') {
 
 function SearchResults({ search, onBack, onRefined }) {
   const products = search?.products || []
+  const retailerGroups = [
+    { source: 'bestbuy.com', name: 'Best Buy' },
+    { source: 'walmart.com', name: 'Walmart' },
+  ].map((retailer) => ({
+    ...retailer,
+    products: products.filter((product) => product.source === retailer.source),
+  }))
+  const otherProducts = products.filter(
+    (product) => !retailerGroups.some((retailer) => retailer.source === product.source),
+  )
+  if (otherProducts.length) {
+    retailerGroups.push({ source: 'other', name: 'Other retailers', products: otherProducts })
+  }
   const collection = search?.collection
   const [selectedProduct, setSelectedProduct] = useState(null)
   const [followUp, setFollowUp] = useState('')
@@ -105,7 +119,7 @@ function SearchResults({ search, onBack, onRefined }) {
           <h2 id="search-results-heading" className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Results for “{search?.query}”</h2>
           <p className="mt-3 text-blue-100/65" aria-live="polite">
             {products.length} {products.length === 1 ? 'product' : 'products'} matched
-            {collection?.result_source === 'live' ? ' from this live Best Buy search' : ' in the stored catalog'}
+            {collection?.result_source === 'live' ? ' from live retailer results' : ' in the stored catalog'}
           </p>
           {collection && (
             <div className="mt-4 rounded-xl border border-blue-100/15 bg-[#071326]/40 p-4 text-sm text-blue-100/75" role="status">
@@ -157,37 +171,51 @@ function SearchResults({ search, onBack, onRefined }) {
           {refineError && <p className="mt-3 text-sm text-rose-200 sm:basis-full" role="alert">{refineError}</p>}
         </form>
 
-        {products.length === 0 ? (
-          <div className="rounded-2xl border border-blue-100/10 bg-[#0b1d35]/70 px-6 py-14 text-center">
-            <p className="text-xl font-semibold">No matching products yet</p>
-            <p className="mt-2 text-blue-100/60">Try a product name or model number. A live check can fail or find listings that do not meet your requirements.</p>
-          </div>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {products.map((product, index) => (
-              <article key={product.id || product.product_url} className={`anim-scale-in d-${(index % 3) + 1} group flex min-h-[27rem] flex-col overflow-hidden rounded-2xl border border-blue-100/10 bg-[#0b1d35]/70 text-left shadow-lg shadow-black/10 transition duration-300 hover:-translate-y-1 hover:border-blue-200/30 hover:bg-[#102746] hover:shadow-xl hover:shadow-black/20`}>
-                <button type="button" onClick={() => setSelectedProduct(product)} aria-label={`View details for ${product.title}`} className="flex flex-1 flex-col text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-blue-300">
-                  <ProductArtwork product={product} className="h-52 w-full shrink-0 transition duration-300 group-hover:scale-[1.02]" showSource />
-                  <div className="flex flex-1 flex-col p-5">
-                    <p className="text-xs font-medium uppercase tracking-wider text-blue-200/55">{(product.category || 'Product').replaceAll('-', ' ')}</p>
-                    <h3 className="mt-2 min-h-[5.25rem] line-clamp-3 text-lg font-semibold leading-7">{product.title}</h3>
-                    {product.scraped_at && <p className="mt-2 text-xs text-blue-100/50">Observed: {new Date(product.scraped_at).toLocaleString()}</p>}
-                    {product.description && <p className="mt-2 line-clamp-3 text-sm leading-6 text-blue-100/60">{product.description}</p>}
-                    <p className="mt-3 line-clamp-2 text-xs leading-5 text-blue-200/70"><span className="font-semibold text-blue-100">Why this match:</span> {product.match_reason}</p>
-                    <div className="mt-auto flex items-baseline gap-2 pt-4">
-                      <span className="anim-count-up text-2xl font-semibold">{formatPrice(product.price, product.currency)}</span>
-                    </div>
-                  </div>
-                </button>
-                <div className="px-5 pb-7 pt-2">
-                  <a href={product.product_url} target="_blank" rel="noreferrer" className="block w-full rounded-xl border border-blue-200/15 bg-blue-400/10 px-4 py-3 text-center text-sm font-semibold text-blue-100 transition hover:bg-blue-400/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300">
-                    View at {product.source || 'retailer'} ↗
-                  </a>
+        <div className="space-y-12">
+          {retailerGroups.map((retailer) => (
+            <section key={retailer.source} aria-labelledby={`results-${retailer.source}`}>
+              <div className="mb-5 flex flex-wrap items-end justify-between gap-4 border-b border-blue-100/10 pb-4">
+                <h3 id={`results-${retailer.source}`} className="text-xl font-semibold">{retailer.name} picks</h3>
+                <span className="text-xs font-medium uppercase tracking-wider text-blue-200/60">{retailer.products.length} picks</span>
+              </div>
+              {retailer.products.length === 0 ? (
+                <p className="rounded-2xl border border-blue-100/10 bg-[#0b1d35]/50 px-5 py-8 text-center text-sm text-blue-100/60">
+                  No matching {retailer.name} listings for this search.
+                </p>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {retailer.products.map((product, index) => (
+                    <article key={product.id || product.product_url} className={`anim-scale-in d-${(index % 3) + 1} group flex min-h-[27rem] flex-col overflow-hidden rounded-2xl border border-blue-100/10 bg-[#0b1d35]/70 text-left shadow-lg shadow-black/10 transition duration-300 hover:-translate-y-1 hover:border-blue-200/30 hover:bg-[#102746] hover:shadow-xl hover:shadow-black/20`}>
+                      <button type="button" onClick={() => setSelectedProduct(product)} aria-label={`View details for ${product.title}`} className="flex flex-1 flex-col text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-blue-300">
+                        <ProductArtwork product={product} className="aspect-square w-full shrink-0" showSource />
+                        <div className="flex flex-1 flex-col p-5">
+                          <p className="text-xs font-medium uppercase tracking-wider text-blue-200/55">{(product.category || 'Product').replaceAll('-', ' ')}</p>
+                          <h4 className="mt-2 min-h-[5.25rem] line-clamp-3 text-lg font-semibold leading-7">{product.title}</h4>
+                          {product.scraped_at && <p className="mt-2 text-xs text-blue-100/50">Observed: {new Date(product.scraped_at).toLocaleString()}</p>}
+                          <p className="mt-2 line-clamp-3 text-sm leading-6 text-blue-100/60">{getProductDescription(product)}</p>
+                          <p className="mt-3 line-clamp-2 text-xs leading-5 text-blue-200/70"><span className="font-semibold text-blue-100">Why this match:</span> {product.match_reason}</p>
+                          <div className="mt-auto flex items-baseline gap-2 pt-4">
+                            <span className="anim-count-up text-2xl font-semibold">{formatPrice(product.price, product.currency)}</span>
+                          </div>
+                        </div>
+                      </button>
+                      <div className="px-5 pb-7 pt-2">
+                        <a href={product.product_url} target="_blank" rel="noreferrer" className="block w-full rounded-xl border border-blue-200/15 bg-blue-400/10 px-4 py-3 text-center text-sm font-semibold text-blue-100 transition hover:bg-blue-400/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300">
+                          View at {product.source || retailer.name} ↗
+                        </a>
+                      </div>
+                    </article>
+                  ))}
                 </div>
-              </article>
-            ))}
-          </div>
-        )}
+              )}
+            </section>
+          ))}
+          {products.length === 0 && (
+            <p className="text-center text-sm text-blue-100/60">
+              Try a product name or model number. Live searches may not return a listing that meets all requested specifications.
+            </p>
+          )}
+        </div>
       </div>
 
       {selectedProduct && (
@@ -196,7 +224,7 @@ function SearchResults({ search, onBack, onRefined }) {
             <ProductArtwork key={selectedProduct.id || selectedProduct.product_url} product={selectedProduct} className="mb-6 aspect-square w-full rounded-2xl" />
             <p className="text-xs font-semibold uppercase tracking-wider text-blue-200/60">{(selectedProduct.category || 'Product').replaceAll('-', ' ')} · {selectedProduct.source || 'Catalog'}</p>
             <h3 id="search-product-dialog-title" className="mt-2 text-2xl font-semibold">{selectedProduct.title}</h3>
-            <p className="mt-3 leading-7 text-blue-100/70">{selectedProduct.description || 'No additional description is available for this product.'}</p>
+            <p className="mt-3 leading-7 text-blue-100/70">{getProductDescription(selectedProduct)}</p>
             <div className="mt-4 rounded-xl border border-blue-100/10 bg-[#071326]/40 p-4">
               <p className="text-xs font-semibold uppercase tracking-wider text-blue-200/60">Why this result</p>
               <p className="mt-2 text-sm leading-6 text-blue-100/75">{selectedProduct.match_reason}</p>

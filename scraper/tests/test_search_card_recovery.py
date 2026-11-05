@@ -27,6 +27,18 @@ def test_streamed_price_stays_with_its_card():
     assert records[URL]['price'] == '129.99'
 
 
+def test_explicit_regular_price_is_kept_only_when_higher():
+    html = card().replace(
+        '</div></div><script>',
+        '</div><div data-testid="price-block-regular-price">'
+        '<span class="sr-only">$159.99</span></div></div><script>',
+    )
+    assert search.parse_search_cards(html)[URL]['regular_price'] == '159.99'
+
+    not_discounted = html.replace('$159.99', '$99.99')
+    assert search.parse_search_cards(not_discounted)[URL]['regular_price'] is None
+
+
 def test_unlinked_fragment_is_not_product_price():
     assert search.parse_search_cards(card().replace('$RC("B:a","S:a")', '')) == {}
 
