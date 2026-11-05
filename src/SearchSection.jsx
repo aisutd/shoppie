@@ -56,7 +56,7 @@ function SearchSection({ onResults }) {
         </form>
         {isSearching && (
           <p className="mt-4 text-sm text-blue-100/70" role="status" aria-live="polite">
-            Checking Best Buy for current listings, saving products, and finding matches. This can take a minute or longer.
+            Checking Best Buy and Walmart for current listings, saving products, and finding matches. This can take a minute or longer.
           </p>
         )}
         {error && <p className="mt-4 text-sm text-rose-200" role="alert">{error}</p>}
