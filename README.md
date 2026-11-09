@@ -23,6 +23,19 @@ docker compose ps
 
 This is a generic starter configuration. The team can add project-specific dependencies and startup commands later.
 
+## Local search demo
+
+Run `SHOPPIE_DEMO_CATALOG=1 python local_search_api.py` in the project virtual
+environment, then run `npm run dev -- --host 127.0.0.1` in a second terminal.
+Search at http://127.0.0.1:5173. The loopback API serves 20 labeled sample
+references in this mode without contacting Supabase or Ollama. Sample cards
+have no retailer image, price, seller, or stock data. Searches that require a
+price return no sample results.
+
+To switch back, stop the API with Ctrl+C and run
+`env -u SHOPPIE_DEMO_CATALOG python local_search_api.py`. Production builds
+do not opt in to the demo. Do not set the demo flag on a deployed backend.
+
 ## Direct tech product scraper
 
 The main single-product command keeps the direct `scraper.py` workflow. From the
@@ -53,10 +66,12 @@ fields. This is **manual source collection**, not successful automatic scraping:
 ```
 
 The command asks for title, full product price, explicit currency code, and
-confirmation of the exact selected variant. Unknown values must stay blank and
-will be rejected. A bare dollar sign does not establish USD. No database access
-occurs by default. Counters stay fetched=0/extracted=0 for manual entry, and the
-printed record says extraction_method=manual.
+confirmation of the exact selected variant. You can also enter a verified image
+URL, description, and availability for that variant. Leave unknown optional
+fields blank. Missing required fields are rejected. A bare dollar sign does not
+establish USD. The command skips database access by default. Counters stay
+fetched=0/extracted=0 for manual entry, and the printed record says
+extraction_method=manual.
 
 The instructor can add `--limit 1 --save` after verifying the source and database
 configuration. Repeat the exact URL to update the same latest-observation row.

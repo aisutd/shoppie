@@ -1,7 +1,9 @@
-"""Local-only product search API backed by Ollama and the Supabase products table."""
+"""Local product search backed by Supabase with optional Ollama suggestions."""
 
 import json
+import logging
 import math
+import os
 import re
 import threading
 import time
@@ -12,13 +14,17 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import requests
 
+from demo_catalog import load_demo_catalog
+from product_references import load_reference_catalog
 from scraper.config import ConfigurationError, load_database_config
+from scraper.scraper import identify_product
 
 
 HOST = "127.0.0.1"
 PORT = 8001
 OLLAMA_URL = "http://127.0.0.1:11434/api/chat"
 MODEL = "qwen2.5-coder:1.5b"
+OLLAMA_RETRY_DELAY = 30
 MAX_BODY_BYTES = 8_192
 CATALOG_CACHE_SECONDS = 300
 CATALOG_PAGE_SIZE = 500
@@ -32,6 +38,7 @@ SEARCH_STOP_WORDS = {
 PRICE_AMOUNT = r"\$?\s*((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,2})?)\s*(?:dollars?|usd)?"
 _catalog_cache = {"expires_at": 0, "products": []}
 _catalog_lock = threading.Lock()
+_ollama_retry_at = 0
 
 
 def interpret_query(query):
@@ -54,12 +61,16 @@ def interpret_query(query):
             ],
             "options": {"temperature": 0},
         },
-        timeout=90,
+        timeout=(1, 5),
     )
     response.raise_for_status()
-    message = response.json().get("message", {}).get("content", "")
-    parsed = json.loads(message)
-    terms = parsed.get("terms", [])
+    payload = response.json()
+    message = payload.get("message") if isinstance(payload, dict) else None
+    content = message.get("content") if isinstance(message, dict) else None
+    if not isinstance(content, str):
+        raise ValueError("The local model returned an invalid message.")
+    parsed = json.loads(content)
+    terms = parsed.get("terms") if isinstance(parsed, dict) else None
     if not isinstance(terms, list):
         raise ValueError("The local model returned an invalid search response.")
 
@@ -409,12 +420,50 @@ def apply_price_condition(products, condition):
     return filtered
 
 
-def search_products(query):
+def rank_references(query, catalog, memory_condition):
+    tokens = normalize_tokens(query) + re.findall(r"\b\d\b", query)
+    if not tokens:
+        return []
+
+    # a stored listing wins over a reference for the same retailer and variant
+    stored = set()
+    for product in catalog:
+        if product.get("source") in {"target.com", "amazon.com"}:
+            try:
+                stored.add(identify_product(product.get("product_url")))
+            except ValueError:
+                continue
+
+    ranked = []
+    for product in apply_memory_condition(load_reference_catalog(), memory_condition):
+        if identify_product(product["product_url"]) in stored:
+            continue
+        title_and_category = f'{product["title"]} {product["category"]}'
+        fields = normalize_tokens(title_and_category) + re.findall(r"\b\d\b", title_and_category)
+        # require evidence for every query term so loose matches do not add references
+        if not all(token in fields if any(char.isdigit() for char in token)
+                   else any(token_similarity(token, field) >= FUZZY_TOKEN_THRESHOLD for field in fields)
+                   for token in tokens):
+            continue
+        score, reason = fuzzy_match(query, product)
+        ranked.append((score, {**product, "match_reason": " ".join(
+            part for part in (reason, product.get("match_reason")) if part
+        )}))
+    return ranked
+
+
+def search_products(query, *, demo=False):
     cheap_preference, query = parse_cheap_preference(query)
     memory_condition, remaining_query = parse_memory_condition(query)
     price_condition, text_query = parse_price_condition(remaining_query)
-    database = load_database_config()
-    catalog = load_catalog(database)
+    # demo references have no prices and never connect to supabase
+    if demo:
+        if price_condition or cheap_preference:
+            return []
+        catalog = load_demo_catalog()
+    else:
+        database = load_database_config()
+        catalog = load_catalog(database)
     category_catalog = filter_by_category(text_query, catalog)
     matching_memory_products = apply_memory_condition(category_catalog, memory_condition)
     ranked = []
@@ -437,12 +486,20 @@ def search_products(query):
             )
             ranked.append((score, product))
 
-    ranked.sort(key=lambda item: (-item[0], float(item[1]["price"])))
-    if ranked:
+    ranked.sort(key=lambda item: (-item[0], item[1]["title"] if demo else float(item[1]["price"])))
+    references = []
+    if not demo and not price_condition and not cheap_preference and not re.search(r"\$\s*\d", query):
+        references = rank_references(text_query, catalog, memory_condition)
+    if ranked or references:
         if cheap_preference:
             cheap_matches = select_cheap_products([product for _, product in ranked])
             return cheap_matches[:MAX_RESULTS]
-        return [product for _, product in ranked[:MAX_RESULTS]]
+        # keep the existing priced results and merge references by relevance alone
+        results = sorted(ranked[:MAX_RESULTS] + references, key=lambda item: -item[0])
+        return [product for _, product in results]
+
+    if demo:
+        return matching_memory_products if memory_condition and not normalize_tokens(text_query) else []
 
     if (price_condition or memory_condition or cheap_preference) and not normalize_tokens(text_query):
         products = [dict(product) for product in catalog]
@@ -466,7 +523,17 @@ def search_products(query):
 def search_with_model_terms(
     query, database, price_condition=None, memory_condition=None, cheap_preference=False
 ):
-    terms = interpret_query(query)
+    global _ollama_retry_at
+    # only model failures are optional; supabase errors still reach the handler
+    if time.monotonic() < _ollama_retry_at:
+        return []
+    try:
+        terms = interpret_query(query)
+    except Exception as error:
+        _ollama_retry_at = time.monotonic() + OLLAMA_RETRY_DELAY
+        logging.getLogger(__name__).warning("Ollama fallback unavailable (%s).", type(error).__name__)
+        return []
+
     filters = []
     for term in terms:
         pattern = f"*{term}*"
@@ -504,6 +571,8 @@ def search_with_model_terms(
 
 
 class SearchHandler(BaseHTTPRequestHandler):
+    demo = False
+
     def send_json(self, status, payload):
         encoded = json.dumps(payload).encode("utf-8")
         self.send_response(status)
@@ -527,31 +596,26 @@ class SearchHandler(BaseHTTPRequestHandler):
             if not isinstance(query, str) or not query.strip() or len(query) > 300:
                 self.send_json(400, {"error": "Enter a search query under 300 characters."})
                 return
-            self.send_json(200, {"products": search_products(query.strip())})
+            # only the development frontend opts in to demo responses
+            if self.demo and self.headers.get("X-Shoppie-Local-Demo") != "1":
+                self.send_json(403, {"error": "Demo search is available only in local development."})
+                return
+            products = search_products(query.strip(), demo=True) if self.demo else search_products(query.strip())
+            self.send_json(200, {"products": products, "demo": True} if self.demo else {"products": products})
         except ConfigurationError as error:
             self.send_json(503, {"error": str(error)})
-        except requests.ConnectionError as error:
-            if "11434" in str(error):
-                message = "Ollama is not running locally. Start Ollama and try again."
-            else:
-                message = "Could not connect to Ollama or Supabase. Check that both are available."
-            self.send_json(503, {"error": message})
+        except requests.ConnectionError:
+            self.send_json(503, {"error": "Could not connect to the Supabase catalog. Try again in a moment."})
         except requests.Timeout:
             self.send_json(504, {"error": "Search timed out. Try again in a moment."})
         except requests.HTTPError as error:
-            response_url = error.response.url if error.response is not None else ""
-            if "11434" in response_url:
-                message = f"Ollama could not load {MODEL}. Run `ollama pull {MODEL}` and try again."
-                status = 503
-            elif error.response is not None and error.response.status_code >= 500:
-                message = "The local model or Supabase returned an error. Check the local services."
-                status = 502
+            if error.response is not None and error.response.status_code >= 500:
+                message = "Supabase returned an error. Try again in a moment."
             else:
                 message = "Supabase rejected the search request. Check its table access and credentials."
-                status = 502
-            self.send_json(status, {"error": message})
-        except (json.JSONDecodeError, ValueError):
-            self.send_json(502, {"error": "The local model returned an invalid response. Try again."})
+            self.send_json(502, {"error": message})
+        except ValueError:
+            self.send_json(502, {"error": "The catalog returned an invalid response. Try again."})
         except Exception:
             self.send_json(500, {"error": "Local search failed. Check the API terminal for details."})
 
@@ -559,11 +623,21 @@ class SearchHandler(BaseHTTPRequestHandler):
         print(f"[local-search] {format % args}")
 
 
+def local_demo_enabled():
+    return (HOST == "127.0.0.1"
+            and os.getenv("SHOPPIE_DEMO_CATALOG") == "1"
+            and all(os.getenv(key, "").lower() != "production" for key in ("SHOPPIE_ENV", "NODE_ENV")))
+
+
 if __name__ == "__main__":
-    try:
-        load_database_config()
-    except ConfigurationError as error:
-        raise SystemExit(str(error)) from None
+    SearchHandler.demo = local_demo_enabled()
+    if SearchHandler.demo:
+        print("Local demo catalog enabled. Supabase and Ollama are disabled for this process.")
+    else:
+        try:
+            load_database_config()
+        except ConfigurationError as error:
+            raise SystemExit(str(error)) from None
+        print(f"Using Ollama model: {MODEL}")
     print(f"Shoppie local search API listening at http://{HOST}:{PORT}")
-    print(f"Using Ollama model: {MODEL}")
     ThreadingHTTPServer((HOST, PORT), SearchHandler).serve_forever()

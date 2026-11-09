@@ -3,10 +3,13 @@
 import json
 import re
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from urllib.parse import parse_qs, urljoin, urlsplit
 
 import requests
 from bs4 import BeautifulSoup
+
+from scraper.product_access import USER_AGENT, require_product_access
 
 PRODUCT_PATHS = {
     "amazon": r"/(?:dp|gp/product)/([A-Z0-9]{10})(?:/|$)",
@@ -18,6 +21,8 @@ PRODUCT_PATHS = {
 
 def identify_product(url):
     """Accept only HTTPS product URLs at our four US retailers."""
+    if not isinstance(url, str) or any(c.isspace() for c in url):
+        raise ValueError("Malformed product URL.")
     try:
         parts = urlsplit(url)
         invalid = parts.scheme != "https" or parts.username or parts.password or parts.port
@@ -84,7 +89,8 @@ def check_page(html):
     lower = soup.get_text(" ", strip=True).lower()
     markers = ["robot check", "validatecaptcha", "verify you are human",
                "verify you're human", "press & hold", "access denied",
-               "click the button below to continue shopping"]
+               "click the button below to continue shopping", "enter the characters you see below",
+               "verify you are a human", "verify you're a human", "too many requests"]
     if (any(marker in lower for marker in markers)
             or soup.select_one('input[name="captchacharacters"]')
             or soup.select_one('form[action*="validateCaptcha"]')):
@@ -93,11 +99,15 @@ def check_page(html):
 
 def fetch_page(url):
     url = clean_url(url)
+    retailer, _ = identify_product(url)
+    rules = {}
     try:
         for attempt in range(4):
+            if retailer in {"target", "amazon"}:
+                require_product_access(url, rules)
             response = requests.get(
                 url, timeout=25, allow_redirects=False,
-                headers={"User-Agent": "ShoppieClassroom/1.0 (educational product-page reader)"},
+                headers={"User-Agent": USER_AGENT},
             )
             if response.status_code not in (301, 302, 303, 307, 308):
                 break
@@ -122,18 +132,37 @@ def fetch_page(url):
     return response.text
 
 
-def fetch_rendered_page(url):
+def fetch_rendered_page(url, headless=True):
     """Optional Chromium rendering for JavaScript-rendered product pages."""
     try:
         from playwright.sync_api import sync_playwright, Error
-        from playwright_stealth import Stealth
     except ImportError:
         raise ValueError("Install scraper/requirements.txt to use --browser.") from None
     url = clean_url(url)
     try:
-        with Stealth().use_sync(sync_playwright()) as playwright:
-            with playwright.chromium.launch(headless=True) as browser:
-                page = browser.new_page()
+        with sync_playwright() as playwright:
+            with playwright.chromium.launch(headless=headless) as browser:
+                retailer, _ = identify_product(url)
+                page = browser.new_page(user_agent=USER_AGENT) if retailer in {"target", "amazon"} else browser.new_page()
+                if retailer in {"target", "amazon"}:
+                    require_product_access(url, {})
+
+                    def guard_navigation(route):
+                        request = route.request
+                        if request.is_navigation_request() and request.frame == page.main_frame:
+                            if request.url != url:
+                                route.abort()
+                                return
+                            # inspects the original response without following a redirect
+                            response = route.fetch(max_redirects=0, timeout=30000)
+                            if response.status != 200:
+                                route.abort()
+                                return
+                            route.fulfill(response=response)
+                        else:
+                            route.continue_()
+
+                    page.route("**/*", guard_navigation)
                 response = page.goto(url, wait_until="domcontentloaded", timeout=30000)
                 if response is None or response.status != 200:
                     raise ValueError("Browser did not receive a successful product page.")
@@ -186,6 +215,15 @@ def product_nodes(value):
             yield from product_nodes(value.get("mainEntity"))
 
 
+def matching_reference(url, reference):
+    destination = urljoin(url, reference)
+    identity = identify_product(url)
+    if identify_product(destination) != identity:
+        return False
+    query = urlsplit(destination).query
+    return identity[0] not in {"target", "amazon"} or not query or query == urlsplit(url).query
+
+
 def main_product(soup, url):
     products = []
     for script in soup.select('script[type="application/ld+json"]'):
@@ -193,13 +231,12 @@ def main_product(soup, url):
             products.extend(product_nodes(json.loads(script.get_text())))
         except (ValueError, TypeError):
             continue
-    identity = identify_product(url)
     matches = []
     for product in products:
         reference = product.get("url") or product.get("@id")
         if isinstance(reference, str):
             try:
-                if identify_product(urljoin(url, reference)) == identity:
+                if matching_reference(url, reference):
                     matches.append(product)
             except ValueError:
                 pass
@@ -224,18 +261,34 @@ def meta(soup, field):
     return tag.get("content") if tag else None
 
 
-def target_embedded_title(soup, product_id):
-    """Read only Target layout title modules explicitly bound to this TCIN.
-
-    Verified in the real 91122087 page's __NEXT_DATA__ on 2026-10-14.
-    Do not recursively search arbitrary JSON for prices or recommendation titles.
-    """
-    script = soup.select_one('script#__NEXT_DATA__[type="application/json"]')
-    if script is None:
+def agreed_value(values, field):
+    values = [value for value in values if value not in (None, "")]
+    if not values:
         return None
+    if field == "price":
+        try:
+            distinct = {Decimal(str(value).replace(",", "")) for value in values}
+        except InvalidOperation:
+            raise ValueError("Invalid selected product price") from None
+        if any(not value.is_finite() for value in distinct):
+            raise ValueError("Invalid selected product price")
+    elif field == "availability":
+        distinct = {re.sub(r"[\s_-]+", "", str(value).rsplit("/", 1)[-1].casefold()) for value in values}
+    else:
+        distinct = {" ".join(str(value).split()).casefold() for value in values}
+    if len(distinct) != 1:
+        raise ValueError(f"Conflicting {field} for the selected product")
+    return values[0]
+
+
+def target_embedded_fields(soup, product_id):
+    # only reads Target layout data bound to the selected TCIN
+    script = soup.select_one('script#__NEXT_DATA__[type="application/json"]')
+    fields = {key: [] for key in ("title", "price", "currency")}
+    if script is None:
+        return {}
     try:
         queries = json.loads(script.get_text())["props"]["dehydratedState"]["queries"]
-        titles = set()
         for query in queries:
             payload = query.get("state", {}).get("data") or {}
             layout = (payload.get("data") or {}).get("layout") or {}
@@ -243,14 +296,17 @@ def target_embedded_title(soup, product_id):
                 for group in zone.get("module_groups", []):
                     for module in group.get("modules", []):
                         for item in module.get("module_data", {}).get("data_by_tcin", []):
-                            title = item.get("title")
-                            if item.get("tcin") == product_id and isinstance(title, str) and title.strip():
-                                titles.add(title.strip())
+                            if str(item.get("tcin")) != product_id:
+                                continue
+                            if isinstance(item.get("title"), str):
+                                fields["title"].append(item["title"].strip())
+                            price = item.get("price")
+                            if isinstance(price, dict):
+                                fields["price"].append(price.get("current_retail"))
+                                fields["currency"].append(price.get("currency") or price.get("priceCurrency"))
     except (ValueError, KeyError, TypeError, AttributeError):
-        return None
-    if len(titles) > 1:
-        raise ValueError("Target embedded data contains conflicting titles for the selected variant.")
-    return next(iter(titles), None)
+        return {}
+    return {key: agreed_value(values, key) for key, values in fields.items()}
 
 
 def amazon_page_fields(soup):
@@ -263,52 +319,56 @@ def amazon_page_fields(soup):
         if value and value.lower() not in {"amazon.com", "amazon"}:
             title = value
 
-    price = currency = availability = None
-    containers = soup.select(
-        "#corePriceDisplay_desktop_feature_div, #corePrice_feature_div, "
-        "#apex_desktop, #buybox"
-    )
-    # Amazon also publishes the selected currency in its navigation's
-    # currencyInfo, even when the primary offer markup omits priceCurrency.
-    # Use that explicit page setting only alongside a price from the product area.
-    page_currency = None
-    for script in soup.find_all("script"):
-        script_text = script.string or script.get_text()
-        match = re.search(
-            r'"currencyInfo"\s*:\s*\{\s*"code"\s*:\s*"([A-Z]{3})"',
-            script_text,
+    prices, currencies, availability = [], [], None
+    for container in soup.select("#corePriceDisplay_desktop_feature_div, #corePrice_feature_div, #apex_desktop, #buybox"):
+        price_tags = container.select(
+            '.a-price:not(.a-text-price) .a-offscreen, '
+            '#priceblock_ourprice, #priceblock_dealprice, #priceblock_saleprice'
         )
-        if match:
-            page_currency = match.group(1)
-            break
-    for container in containers:
-        currency_tag = container.select_one('[itemprop="priceCurrency"], [data-a-currency-code]')
-        if currency_tag:
-            currency = currency_tag.get("content") or currency_tag.get("data-a-currency-code")
-        if price is None:
-            price_tag = container.select_one(
-                '.a-price:not(.a-text-price) .a-offscreen, '
-                '#priceblock_ourprice, #priceblock_dealprice, #priceblock_saleprice'
-            )
-            if price_tag:
-                displayed = price_tag.get("content") or price_tag.get_text(" ", strip=True)
-                match = re.fullmatch(
-                    r"\s*(US\$|\$)?\s*((?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d{2})?)\s*",
-                    displayed,
-                )
-                if match:
-                    symbol, amount = match.groups()
-                    price = amount.replace(",", "")
-                    # A bare dollar sign does not establish currency.
-                    if symbol == "US$":
-                        currency = currency or "USD"
-        if availability is None:
-            availability_tag = container.select_one('[itemprop="availability"]')
-            if availability_tag:
-                availability = availability_tag.get("href") or availability_tag.get_text(" ", strip=True)
-    if price is not None and currency is None:
-        currency = page_currency
-    return title, price, currency, availability
+        for tag in price_tags:
+            displayed = tag.get("content") or tag.get_text(" ", strip=True)
+            match = re.fullmatch(r"\s*(US\$|\$)?\s*((?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d{2})?)\s*", displayed)
+            if match:
+                symbol, amount = match.groups()
+                prices.append(amount.replace(",", ""))
+                if symbol == "US$":
+                    currencies.append("USD")
+        for tag in container.select('[itemprop="priceCurrency"], [data-a-currency-code]'):
+            currencies.append(tag.get("content") or tag.get("data-a-currency-code"))
+        stock = container.select_one('[itemprop="availability"]')
+        if stock:
+            availability = agreed_value([availability, stock.get("href") or stock.get("content") or stock.get_text(" ", strip=True)], "availability")
+    status = text(soup, "#availability")
+    if status and status.strip(" .").lower() in {"currently unavailable", "out of stock", "sold out"}:
+        availability = agreed_value([availability, "OutOfStock"], "availability")
+    if prices:
+        # amazon's explicit page currency can accompany a primary offer amount
+        for script in soup.find_all("script"):
+            currencies.extend(re.findall(r'"currencyInfo"\s*:\s*\{\s*"code"\s*:\s*"([A-Z]{3})"', script.string or script.get_text()))
+    return title, agreed_value(prices, "price"), agreed_value(currencies, "currency"), availability
+
+
+def selected_page_fields(soup, retailer):
+    # compares only named product metadata and the retailer's primary offer
+    prices = [meta(soup, "price:amount"), meta(soup, "price")]
+    currencies = [meta(soup, "price:currency"), meta(soup, "priceCurrency")]
+    availability = [meta(soup, "availability")]
+    title = None
+    if retailer == "amazon":
+        title, price, currency, stock = amazon_page_fields(soup)
+        prices.append(price)
+        currencies.append(currency)
+        availability.append(stock)
+    else:
+        for tag in soup.select('[data-test="product-price"]'):
+            displayed = tag.get_text(" ", strip=True)
+            if re.fullmatch(r"(?:US\$|\$)?(?:\d+|\d{1,3}(?:,\d{3})+)\.\d{2}", displayed):
+                prices.append(re.sub(r"^(US\$|\$)", "", displayed).replace(",", ""))
+                if displayed.startswith("US$"):
+                    currencies.append("USD")
+    return {"title": title, "price": agreed_value(prices, "price"),
+            "currency": agreed_value(currencies, "currency"),
+            "availability": agreed_value(availability, "availability")}
 
 
 def extract_product(html, url):
@@ -316,14 +376,18 @@ def extract_product(html, url):
     url = clean_url(url)
     retailer, product_id = identify_product(url)
     soup = BeautifulSoup(html, "html.parser")
-    # Refuse a different selected product (for example an Amazon variant change).
-    canonical = soup.select_one('link[rel="canonical"]')
-    if canonical and canonical.get("href"):
-        if identify_product(urljoin(url, canonical["href"])) != (retailer, product_id):
+    # checks canonical identity before trusting page-level fields
+    canonical = soup.select_one('link[rel="canonical"][href]')
+    target_variant = retailer == "target" and "preselect" in parse_qs(urlsplit(url).query)
+    canonical_matches = canonical and matching_reference(url, canonical["href"])
+    if canonical and not canonical_matches:
+        parent_url = urlsplit(url)._replace(query="").geturl()
+        parent_identity = identify_product(parent_url)
+        if not target_variant or identify_product(urljoin(url, canonical["href"])) != parent_identity:
             raise ValueError("Page canonical URL identifies a different product.")
     if retailer == "amazon":
-        asin = soup.select_one('input#ASIN')
-        if asin and asin.get("value") and asin["value"] != product_id:
+        asins = {tag["value"] for tag in soup.select('input#ASIN[value]') if tag["value"]}
+        if asins and asins != {product_id}:
             raise ValueError("Amazon selected a different ASIN; use that product's exact URL.")
     record = {
         "retailer": retailer, "product_id": product_id, "product_url": url,
@@ -333,7 +397,25 @@ def extract_product(html, url):
         "extraction_method": "html",
     }
     product = main_product(soup, url)
-    record["image_url"] = product_image_url(soup, product, url)
+    # parent-level artwork and description cannot identify a selected child
+    use_page_fields = not target_variant or bool(canonical_matches)
+    record["image_url"] = product_image_url(soup if use_page_fields else None, product, url)
+    description = product.get("description") if product else None
+    if not isinstance(description, str) or not description.strip():
+        tag = soup.select_one('meta[property="og:description"], meta[name="description"]')
+        description = tag.get("content") if tag and use_page_fields else None
+    if description:
+        record["description"] = BeautifulSoup(description, "html.parser").get_text(" ", strip=True) or None
+    target_fields = target_embedded_fields(soup, product_id) if retailer == "target" else {}
+    if target_variant and not canonical_matches:
+        product_reference = product and (product.get("url") or product.get("@id"))
+        if not product_reference:
+            if not target_fields.get("title"):
+                raise ValueError("Target page does not identify the selected variant")
+            # unbound page metadata could describe the parent variant
+            record.update(target_fields, image_url=None, description=None)
+            return record
+    page_fields = selected_page_fields(soup, retailer) if retailer in {"target", "amazon"} and use_page_fields else {}
     if product:
         record["extraction_method"] = "json-ld"
         record["title"] = product.get("name")
@@ -344,13 +426,26 @@ def extract_product(html, url):
         if not isinstance(offers, dict) or not schema_type(offers, "Offer"):
             raise ValueError("Expected one exact Offer; price ranges/multiple offers are rejected.")
         if offers.get("url"):
-            if not isinstance(offers["url"], str) or identify_product(urljoin(url, offers["url"])) != (retailer, product_id):
+            if not isinstance(offers["url"], str) or not matching_reference(url, offers["url"]):
                 raise ValueError("Offer belongs to a different product; no price collected.")
         record["price"] = offers.get("price")
         record["currency"] = offers.get("priceCurrency")
         record["availability"] = offers.get("availability")
         seller = offers.get("seller")
         record["seller"] = seller.get("name") if isinstance(seller, dict) else None
+        if retailer in {"target", "amazon"}:
+            record["title"] = agreed_value([record["title"], target_fields.get("title"), page_fields.get("title")], "title")
+            spec = offers.get("priceSpecification")
+            if isinstance(spec, list) and len(spec) == 1:
+                spec = spec[0]
+            if spec is not None and not isinstance(spec, dict):
+                raise ValueError("Expected one exact price specification")
+            spec = spec or {}
+            if any(key in spec for key in ("billingDuration", "billingIncrement", "referenceQuantity", "priceType")):
+                raise ValueError("Expected a current product price, not a pricing schedule")
+            for field, key in (("price", "price"), ("currency", "priceCurrency")):
+                record[field] = agreed_value([record[field], spec.get(key), target_fields.get(field), page_fields.get(field)], field)
+            record["availability"] = agreed_value([record["availability"], page_fields.get("availability")], "availability")
         return record
 
     # These fallbacks only inspect the main product's named HTML elements.
@@ -361,32 +456,20 @@ def extract_product(html, url):
         "walmart": 'h1[itemprop="name"], h1',
     }
     record["title"] = text(soup, titles[retailer])
-    if retailer == "target":
-        # Rendering sometimes removes the main heading while this TCIN-bound
-        # title remains in public page data. Price/currency must still be explicit.
-        embedded_title = target_embedded_title(soup, product_id)
-        if embedded_title:
-            record["title"] = embedded_title
+    if retailer in {"target", "amazon"}:
+        for field in ("title", "price", "currency", "availability"):
+            record[field] = agreed_value([record[field], target_fields.get(field), page_fields.get(field)], field)
+        return record
+
     record["price"] = meta(soup, "price:amount") or meta(soup, "price")
     record["currency"] = meta(soup, "price:currency") or meta(soup, "priceCurrency")
     record["availability"] = meta(soup, "availability")
-    price_selectors = {
-        "bestbuy": '[data-testid="customer-price"]',
-        "target": '[data-test="product-price"]',
-    }
-    if retailer in price_selectors and record["price"] is None:
-        displayed = text(soup, price_selectors[retailer])
-        # Match only a single whole price in the named main-product price element.
+    if retailer == "bestbuy" and record["price"] is None:
+        displayed = text(soup, '[data-testid="customer-price"]')
         if displayed and re.fullmatch(r"(?:US\$|\$)?(?:\d+|\d{1,3}(?:,\d{3})+)\.\d{2}", displayed):
             record["price"] = re.sub(r"^(US\$|\$)", "", displayed).replace(",", "")
             if displayed.startswith("US$"):
                 record["currency"] = "USD"
-    if retailer == "amazon":
-        title, price, currency, availability = amazon_page_fields(soup)
-        record["title"] = record["title"] or title
-        record["price"] = record["price"] or price
-        record["currency"] = record["currency"] or currency
-        record["availability"] = record["availability"] or availability
     return record
 
 
@@ -412,7 +495,7 @@ def product_image_url(soup, product, page_url):
         'meta[property="og:image:secure_url"]',
         'meta[name="twitter:image"]',
     ):
-        tag = soup.select_one(selector)
+        tag = soup.select_one(selector) if soup is not None else None
         if tag and tag.get("content"):
             candidates.append(tag["content"])
 
@@ -423,7 +506,7 @@ def product_image_url(soup, product, page_url):
         '[data-testid*="hero"] img',
         "main img",
     ):
-        image = soup.select_one(selector)
+        image = soup.select_one(selector) if soup is not None else None
         if not image:
             continue
         for attribute in ("data-src", "data-original", "src", "data-srcset", "srcset"):

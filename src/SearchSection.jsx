@@ -15,12 +15,15 @@ function SearchSection({ onResults }) {
     try {
       const response = await fetch('/api/search', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(import.meta.env.DEV ? { 'X-Shoppie-Local-Demo': '1' } : {}),
+        },
         body: JSON.stringify({ query: searchQuery }),
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Search failed. Please try again.')
-      onResults({ query: searchQuery, products: data.products || [] })
+      onResults({ query: searchQuery, products: data.products || [], demo: import.meta.env.DEV && data.demo === true })
     } catch (searchError) {
       setError(searchError.message || 'Could not reach local search. Start the local API and try again.')
     } finally {

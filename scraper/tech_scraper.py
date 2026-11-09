@@ -14,6 +14,14 @@ from dotenv import load_dotenv
 from bs4 import BeautifulSoup
 
 
+# supports the existing direct script command as well as python -m
+if not __package__:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from scraper import scraper as product_scraper
+from scraper.validator import Product, validate_record
+
+
 
 PRODUCT_PATHS = {
     "amazon": r"/(?:dp|gp/product)/([A-Z0-9]{10})(?:/|$)",
@@ -77,10 +85,12 @@ def check_page(html):
 
 def fetch_page(url):
     """Fetch product page securely, handling retailer-specific network quirks & redirects."""
-    from curl_cffi import requests as cffi_requests
-
     original_url = clean_url(url)
     retailer, _ = identify_product(original_url)
+    if retailer in {"target", "amazon"}:
+        return product_scraper.fetch_page(original_url), original_url
+
+    from curl_cffi import requests as cffi_requests
 
     session = cffi_requests.Session()
     try:
@@ -103,9 +113,7 @@ def fetch_page(url):
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
                 "Accept-Language": "en-US,en;q=0.9",
             }
-            if retailer == "amazon":
-                session.get("https://www.amazon.com", impersonate="chrome", headers=headers, timeout=15)
-            elif retailer == "walmart":
+            if retailer == "walmart":
                 session.get("https://www.walmart.com", impersonate="chrome", headers=headers, timeout=15)
 
             response = session.get(
@@ -290,128 +298,13 @@ def bestbuy_embedded_data(soup, target_sku):
     return title, price
 
 
-def target_offer_price(offers):
-    """Target's JSON-LD offers can be a list, an AggregateOffer, or nest price in priceSpecification.
-    Returns (price, currency) only if every offer agrees on one price; otherwise (None, None)."""
-    candidates = offers if isinstance(offers, list) else [offers]
-    prices, currency = set(), None
-    for offer in candidates:
-        if not isinstance(offer, dict):
-            continue
-        spec = offer.get("priceSpecification")
-        if isinstance(spec, list):
-            spec = spec[0] if spec else None
-        for source in (offer, spec if isinstance(spec, dict) else {}):
-            for key in ("price", "lowPrice"):
-                value = source.get(key)
-                if value not in (None, ""):
-                    prices.add(str(value))
-                    currency = currency or offer.get("priceCurrency") or source.get("priceCurrency")
-                    break
-            else:
-                continue
-            break
-    if len(prices) == 1:
-        return prices.pop(), currency
-    return None, None
-
-
-def target_embedded_data(soup):
-    """Best-effort: pulls the first price found in Target's embedded page state."""
-    for script in soup.select("script"):
-        content = script.get_text()
-        if "current_retail" in content or "formatted_current_price" in content:
-            match = re.search(r'\\?"current_retail\\?"\s*:\s*([\d\.]+)', content)
-            if not match:
-                match = re.search(r'\\?"formatted_current_price\\?"\s*:\s*\\?"\$([\d,]+\.\d{2})', content)
-            if match:
-                return match.group(1).replace(",", "")
-    return None
-
-
 def render_target_page(url, headless=True):
-    """Load a Target product page in a real browser (Playwright) so its JavaScript-filled
-    price appears. Stops immediately if Target serves a bot check; it never tries to get around one."""
-    try:
-        from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
-        from playwright_stealth import Stealth
-    except ImportError:
-        raise ValueError(
-            "Browser support isn't installed (pip install -r scraper/requirements.txt)."
-        ) from None
-
-    original_url = clean_url(url)
-    with Stealth().use_sync(sync_playwright()) as p:
-        try:
-            browser = p.chromium.launch(headless=headless)
-        except Exception as e:
-            raise ValueError(f"Could not start Chromium ({e}). Try: playwright install chromium") from None
-        try:
-            context = browser.new_context(locale="en-US", viewport={"width": 1366, "height": 900})
-            page = context.new_page()
-            response = page.goto(original_url, wait_until="domcontentloaded", timeout=45000)
-            try:
-                page.wait_for_selector('[data-test="product-price"]', timeout=20000)
-            except PlaywrightTimeout:
-                raise ValueError(
-                    "Target's price did not load within 20s. It may have shown a human-verification "
-                    "check (which this scraper does not try to get around) or the item has no online price. "
-                    "No record collected. Use manual_add.py for this product."
-                ) from None
-            final_url = page.url
-            html = page.content()
-            status = response.status if response else None
-        except PlaywrightTimeout:
-            raise ValueError("Target page timed out while loading.") from None
-        finally:
-            browser.close()
-
-    print(f"      final URL: {final_url} | status: {status}")
-    if urlsplit(final_url).path.rstrip("/").endswith("/blocked"):
-        raise ValueError("Target served a bot-check page (/blocked). No record collected.")
-    if status != 200:
-        raise ValueError(f"Target returned HTTP {status}; no record collected.")
-    check_page(html)
-
-    try:
-        identify_product(final_url)
-    except ValueError:
-        final_url = original_url
-    return html, final_url
-
-
-def target_diagnostics(soup, html, record):
-    """Short summary of what a Target page contains, shown only when extraction fails."""
-    ld_scripts = soup.select('script[type="application/ld+json"]')
-    ld_products = 0
-    for script in ld_scripts:
-        try:
-            ld_products += sum(1 for _ in product_nodes(json.loads(script.get_text())))
-        except (ValueError, TypeError):
-            pass
-    h1 = soup.select_one("h1")
-    title_tag = soup.select_one("title")
-    dollar_hits = re.findall(r'\$\s?[\d,]+\.\d{2}', html)[:5]
-    price_els = len(soup.select('[data-test="product-price"]'))
-    return "\n".join([
-        f"  title found        : {record['title']!r}",
-        f"  price found        : {record['price']!r}",
-        f"  page length        : {len(html)} chars",
-        f"  <title> tag        : {title_tag.get_text(strip=True)[:100] if title_tag else None!r}",
-        f"  first <h1>         : {h1.get_text(' ', strip=True)[:100] if h1 else None!r}",
-        f"  JSON-LD scripts    : {len(ld_scripts)} ({ld_products} Product nodes)",
-        f"  'current_retail'   : {'current_retail' in html}",
-        f"  'formatted_current_price': {'formatted_current_price' in html}",
-        f"  price placeholder  : {'price-module-placeholder' in html}",
-        f"  product-price els  : {price_els}",
-        f"  first $ amounts    : {dollar_hits}",
-    ])
+    return product_scraper.fetch_rendered_page(url, headless=headless), clean_url(url)
 
 
 def extract_product(html, final_url, category="laptops"):
-    check_page(html)
+    final_url = clean_url(final_url)
     retailer, product_id = identify_product(final_url)
-    soup = BeautifulSoup(html, "html.parser")
 
     parts = urlsplit(final_url)
     clean_domain = parts.hostname.replace("www.", "") if parts.hostname else retailer
@@ -428,6 +321,17 @@ def extract_product(html, final_url, category="laptops"):
         "description": None,
     }
 
+    if retailer in {"target", "amazon"}:
+        # uses the staged parser and validator before building the existing catalog row
+        product = validate_record(product_scraper.extract_product(html, final_url), Product)
+        record.update(title=product.title, price=str(product.price), currency=product.currency,
+                      image_url=product.image_url, description=product.description,
+                      scraped_at=product.observed_at.isoformat())
+        return record
+
+    check_page(html)
+    soup = BeautifulSoup(html, "html.parser")
+
     # 1. JSON-LD structured data extraction
     product = main_product(soup, final_url)
     record["image_url"] = product_image_url(soup, product, final_url)
@@ -443,9 +347,7 @@ def extract_product(html, final_url, category="laptops"):
     # 2. Retailer-specific Title Fallbacks
     if not record["title"]:
         titles = {
-            "amazon": "#productTitle",
             "bestbuy": 'div.sku-title h1, div[class*="product-name"] h1, h1[class*="productTitle"]',
-            "target": 'h1[data-test="product-title"], h1',
             "walmart": 'h1[itemprop="name"], h1[class*="prod-ProductTitle"], h1',
         }
         record["title"] = text(soup, titles[retailer])
@@ -504,9 +406,7 @@ def extract_product(html, final_url, category="laptops"):
 
     # 6. Retailer-specific CSS & Element Selectors
     price_selectors = {
-        "amazon": '.a-price .a-offscreen, span.a-price-whole, .apexPriceToPay .a-offscreen',
         "bestbuy": 'div[class*="priceView-hero-price"] span[aria-hidden="true"], span[class*="pricing-price"], div[class*="price-block"] span',
-        "target": '[data-test="product-price"], span[class*="Price"]',
         "walmart": '[itemprop="price"], span[itemprop="price"], div[data-testid="price-wrap"] span'
     }
 

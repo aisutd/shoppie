@@ -27,7 +27,7 @@ AVAILABILITY_ALIASES = {
 }
 FUTURE_TOLERANCE = timedelta(minutes=5)
 
-class Laptop(BaseModel):
+class Product(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     retailer: Literal["amazon", "bestbuy", "target", "walmart"]
@@ -37,21 +37,12 @@ class Laptop(BaseModel):
     price: Decimal = Field(gt=0, max_digits=12, decimal_places=2, allow_inf_nan=False)
     currency: Literal["USD"]
     image_url: str | None = None
+    description: str | None = None
     availability: str | None = None
     seller: str | None = Field(default=None, max_length=300)
     discount: None = None  # Not extracted in this lesson. Unknown is not zero.
     observed_at: datetime
     extraction_method: Literal["json-ld", "html", "manual"]
-
-    @field_validator("title")
-    @classmethod
-    def laptop_title(cls, value):
-        if not re.search(r"\b(laptop|notebook|chromebook|macbook|thinkpad|thinkbook|ideapad|zenbook|vivobook)\b", value, re.I):
-            raise ValueError("title must clearly describe a laptop")
-        if re.search(r"\b(adapter|charger|sleeve|case|bag|backpack|replacement|stand|battery|"
-                     r"docking|dock|cover|protector|skin|cooling)\b", value, re.I):
-            raise ValueError("accessories are outside this lesson")
-        return value
 
     @field_validator("price", mode="before")
     @classmethod
@@ -71,7 +62,8 @@ class Laptop(BaseModel):
             parts = urlsplit(value)
         except ValueError:
             raise ValueError("image_url must be an HTTPS URL or null") from None
-        if parts.scheme != "https" or not parts.hostname or parts.username or parts.password:
+        if (parts.scheme != "https" or not parts.hostname or parts.username or parts.password
+                or any(char.isspace() for char in value)):
             raise ValueError("image_url must be an HTTPS URL or null")
         return value
 
@@ -104,10 +96,24 @@ class Laptop(BaseModel):
     def same_product(self):
         if identify_product(self.product_url) != (self.retailer, self.product_id):
             raise ValueError("URL, retailer and product ID must agree")
+        if self.retailer in {"target", "amazon"} and self.availability in {"OutOfStock", "SoldOut", "Discontinued"}:
+            raise ValueError("Selected product is unavailable")
         return self
 
 
-def validate_record(record):
+class Laptop(Product):
+    @field_validator("title")
+    @classmethod
+    def laptop_title(cls, value):
+        if not re.search(r"\b(laptop|notebook|chromebook|macbook|thinkpad|thinkbook|ideapad|zenbook|vivobook)\b", value, re.I):
+            raise ValueError("title must clearly describe a laptop")
+        if re.search(r"\b(adapter|charger|sleeve|case|bag|backpack|replacement|stand|battery|"
+                     r"docking|dock|cover|protector|skin|cooling)\b", value, re.I):
+            raise ValueError("accessories are outside this lesson")
+        return value
+
+
+def validate_record(record, product_type=Laptop):
     """Clean formatting on a copy, then apply the required-field rules."""
     cleaned = dict(record)
     for name, value in cleaned.items():
@@ -126,5 +132,5 @@ def validate_record(record):
         cleaned["seller"] = None
     if isinstance(cleaned.get("product_url"), str):
         cleaned["product_url"] = clean_url(cleaned["product_url"])
-    return Laptop.model_validate(cleaned)
+    return product_type.model_validate(cleaned)
 

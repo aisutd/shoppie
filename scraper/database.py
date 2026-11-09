@@ -81,6 +81,8 @@ def upsert_product(database: Database, product: Laptop):
         "product_url": product.product_url, "source": f"{product.retailer}.com",
         "category": "laptops", "scraped_at": product.observed_at.isoformat(),
     }
+    if product.description is not None:
+        row["description"] = product.description
     headers = request_headers(database)
     headers["Prefer"] = "resolution=merge-duplicates,return=minimal"
     try:
