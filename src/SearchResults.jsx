@@ -49,6 +49,7 @@ function formatPrice(price, currency = 'USD') {
 
 function SearchResults({ search, onBack }) {
   const products = search?.products || []
+  const collection = search?.collection
   const [selectedProduct, setSelectedProduct] = useState(null)
 
   useEffect(() => {
@@ -69,13 +70,29 @@ function SearchResults({ search, onBack }) {
         <div className="mb-10 border-b border-blue-100/10 pb-5">
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-blue-200/70">Product search</p>
           <h2 id="search-results-heading" className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Results for “{search?.query}”</h2>
-          <p className="mt-3 text-blue-100/65" aria-live="polite">{products.length} {products.length === 1 ? 'product' : 'products'} found in your catalog</p>
+          <p className="mt-3 text-blue-100/65" aria-live="polite">
+            {products.length} {products.length === 1 ? 'product' : 'products'} matched
+            {collection?.result_source === 'live' ? ' from this live Best Buy search' : ' in the stored catalog'}
+          </p>
+          {collection && (
+            <div className="mt-4 rounded-xl border border-blue-100/15 bg-[#071326]/40 p-4 text-sm text-blue-100/75" role="status">
+              <p>{collection.message}</p>
+              {collection.errors?.length > 0 && (
+                <details className="mt-2">
+                  <summary className="cursor-pointer">Collection details</summary>
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    {collection.errors.map((message, index) => <li key={index}>{message}</li>)}
+                  </ul>
+                </details>
+              )}
+            </div>
+          )}
         </div>
 
         {products.length === 0 ? (
           <div className="rounded-2xl border border-blue-100/10 bg-[#0b1d35]/70 px-6 py-14 text-center">
             <p className="text-xl font-semibold">No matching products yet</p>
-            <p className="mt-2 text-blue-100/60">Try another search, or add more products to your Supabase catalog.</p>
+            <p className="mt-2 text-blue-100/60">Try a product name or model number. A live check can fail or find listings that do not meet your requirements.</p>
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -86,6 +103,7 @@ function SearchResults({ search, onBack }) {
                   <div className="flex flex-1 flex-col p-5">
                     <p className="text-xs font-medium uppercase tracking-wider text-blue-200/55">{(product.category || 'Product').replaceAll('-', ' ')}</p>
                     <h3 className="mt-2 text-lg font-semibold">{product.title}</h3>
+                    {product.scraped_at && <p className="mt-2 text-xs text-blue-100/50">Observed: {new Date(product.scraped_at).toLocaleString()}</p>}
                     {product.description && <p className="mt-2 line-clamp-3 text-sm leading-6 text-blue-100/60">{product.description}</p>}
                     <p className="mt-3 text-xs leading-5 text-blue-200/70"><span className="font-semibold text-blue-100">Why this match:</span> {product.match_reason}</p>
                     <div className="mt-auto flex items-baseline gap-2 pt-4">

@@ -13,6 +13,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import requests
 
 from scraper.config import ConfigurationError, load_database_config
+from scraper.live_search import collect_live_products
+from scraper.search_intent import apply_requirements, listing_type, parse_requirements, product_type
 
 
 HOST = "127.0.0.1"
@@ -196,6 +198,10 @@ def fuzzy_match(query, product):
 
 def filter_by_category(query, products, category_source=None):
     """When a query names a catalog category, keep results from that category."""
+    requested_type = product_type(query)
+    if requested_type:
+        # Intent is independent of which categories happen to be in the catalog.
+        return [product for product in products if listing_type(product) == requested_type]
     query_tokens = list(dict.fromkeys(normalize_tokens(query)))
     category_tokens = {
         token
@@ -279,7 +285,6 @@ def parse_cheap_preference(query):
 
 
 def extract_memory_gb(product):
-    text = " ".join(str(product.get(field) or "") for field in ("title", "description"))
     patterns = (
         re.compile(
             r"\b(\d+(?:\.\d+)?)\s*(?:gibibytes?|gib|gigabytes?|gb)\s+"
@@ -292,8 +297,42 @@ def extract_memory_gb(product):
             re.IGNORECASE,
         ),
     )
-    amounts = [Decimal(match.group(1)) for pattern in patterns for match in pattern.finditer(text)]
-    return max(amounts) if amounts else None
+    # The selected listing title takes priority over a generic description
+    # mentioning other configurations (e.g. 'available in 8, 16 and 24 GB').
+    for field in ("title", "description"):
+        text = str(product.get(field) or "")
+        amounts = set()
+        for pattern_index, pattern in enumerate(patterns):
+            for match in pattern.finditer(text):
+                # '24GB RAM 512GB SSD' must not turn RAM+512GB into a
+                # second memory claim; RAM already belongs to the preceding 24GB.
+                if pattern_index == 1 and re.search(r"\d\s*(?:gb|gib)\s*$", text[:match.start()], re.I):
+                    continue
+                amounts.add(Decimal(match.group(1)))
+        if amounts:
+            return next(iter(amounts)) if len(amounts) == 1 else None
+    return None
+
+
+def apply_identity_requirements(query, products):
+    """Explicit Apple chip/family requirements cannot be overridden by fuzzy/AI matches.
+
+    Use the selected listing title as evidence, not generic descriptions listing
+    compatibility with other devices. Missing evidence remains a non-match.
+    """
+    chip_pattern = r"\bm[1-9]\d?(?:\s+(?:pro|max|ultra))?\b"
+    requested_chips = {" ".join(m.group().lower().split()) for m in re.finditer(chip_pattern, query, re.I)}
+    family = re.search(r"\bmacbook\s+(air|pro)\b", query, re.I)
+    filtered = []
+    for product in apply_requirements(query, products):
+        title = str(product.get("title") or "")
+        title_chips = {" ".join(m.group().lower().split()) for m in re.finditer(chip_pattern, title, re.I)}
+        if requested_chips and not requested_chips.issubset(title_chips):
+            continue
+        if family and not re.search(r"\bmacbook\s+" + family.group(1) + r"\b", title, re.I):
+            continue
+        filtered.append(product)
+    return filtered
 
 
 def apply_memory_condition(products, condition):
@@ -409,14 +448,24 @@ def apply_price_condition(products, condition):
     return filtered
 
 
-def search_products(query):
+def search_products(query, catalog=None, allow_model=True):
+    original_query = query
+    candidate_scope = catalog is not None
     cheap_preference, query = parse_cheap_preference(query)
     memory_condition, remaining_query = parse_memory_condition(query)
     price_condition, text_query = parse_price_condition(remaining_query)
     database = load_database_config()
-    catalog = load_catalog(database)
-    category_catalog = filter_by_category(text_query, catalog)
+    if catalog is None:
+        catalog = load_catalog(database)
+    category_catalog = apply_identity_requirements(original_query, filter_by_category(text_query, catalog))
+    intent = parse_requirements(original_query)
+    if not category_catalog and (intent["product_type"] or intent["specs"] or re.search(r"\bm[1-9]\d?\b|\bmacbook\s+(?:air|pro)\b", original_query, re.I)):
+        # The loaded candidates/catalog contain no evidence for the explicit
+        # identity. Asking a model for synonyms cannot establish that identity.
+        return []
     matching_memory_products = apply_memory_condition(category_catalog, memory_condition)
+    if memory_condition and not matching_memory_products:
+        return []
     ranked = []
     for catalog_product in matching_memory_products:
         product = dict(catalog_product)
@@ -445,7 +494,7 @@ def search_products(query):
         return [product for _, product in ranked[:MAX_RESULTS]]
 
     if (price_condition or memory_condition or cheap_preference) and not normalize_tokens(text_query):
-        products = [dict(product) for product in catalog]
+        products = [dict(product) for product in apply_identity_requirements(original_query, catalog)]
         if not memory_condition:
             for product in products:
                 product.pop("match_reason", None)
@@ -458,15 +507,36 @@ def search_products(query):
 
     # Keep the local model available as a slower fallback for conceptual searches
     # that have no useful token overlap with the catalog.
+    if not allow_model:
+        return []
     return search_with_model_terms(
-        text_query or query, database, price_condition, memory_condition, cheap_preference
+        text_query or query, database, price_condition, memory_condition, cheap_preference,
+        candidate_products=catalog if candidate_scope else None,
+        original_query=original_query,
     )
 
 
 def search_with_model_terms(
-    query, database, price_condition=None, memory_condition=None, cheap_preference=False
+    query, database, price_condition=None, memory_condition=None, cheap_preference=False,
+    candidate_products=None, original_query=None,
 ):
     terms = interpret_query(query)
+    if candidate_products is not None:
+        # Keep model-expanded searches inside THIS request's candidate set.
+        # Model terms cannot introduce unseen URLs or different catalog records.
+        products = []
+        for candidate in candidate_products:
+            if any(fuzzy_match(term, candidate)[0] >= 0.5 for term in terms):
+                product = dict(candidate)
+                _, reason = fuzzy_match(query, product)
+                product["match_reason"] = reason or f'Suggested as a related result for “{query}”.'
+                products.append(product)
+        products = apply_identity_requirements(original_query or query, filter_by_category(query, products, candidate_products))
+        products = apply_memory_condition(products, memory_condition)
+        products = apply_price_condition(products, price_condition)
+        if cheap_preference:
+            products = select_cheap_products(products)
+        return products[:MAX_RESULTS]
     filters = []
     for term in terms:
         pattern = f"*{term}*"
@@ -492,7 +562,9 @@ def search_with_model_terms(
         timeout=20,
     )
     result.raise_for_status()
-    products = filter_by_category(query, result.json(), load_catalog(database))
+    products = apply_identity_requirements(
+        original_query or query, filter_by_category(query, result.json(), load_catalog(database))
+    )
     for product in products:
         _, reason = fuzzy_match(query, product)
         product["match_reason"] = reason or f'Suggested as a related result for “{query}”.'
@@ -501,6 +573,56 @@ def search_with_model_terms(
     if cheap_preference:
         products = select_cheap_products(products)
     return products
+
+
+def search_response(query):
+    """Collect fresh Best Buy candidates, save them, then apply existing ranking."""
+    database = load_database_config()
+    _, discovery_query = parse_cheap_preference(query)
+    _, discovery_query = parse_price_condition(discovery_query)
+    discovery_query = re.sub(
+        r"\b(\d+(?:\.\d+)?)\s*(gb|tb)\s*(?:of\s+)?(?:ram|memory)\b",
+        r"\1\2", discovery_query, flags=re.I,
+    )
+    discovery_query = " ".join(
+        word for word in discovery_query.split() if word.casefold() not in SEARCH_STOP_WORDS
+    ) or query
+    candidates, collection = collect_live_products(discovery_query, database)
+    if collection["saved"]:
+        # Another search should not use the five-minute pre-collection snapshot.
+        with _catalog_lock:
+            _catalog_cache["expires_at"] = 0
+    if candidates:
+        try:
+            products = search_products(query, catalog=candidates)
+        except (requests.RequestException, ValueError):
+            # Collection may succeed even when optional Ollama expansion fails.
+            # Keep the successfully saved records, but don't show unranked items.
+            products = search_products(query, catalog=candidates, allow_model=False)
+            collection["errors"].append("Optional AI query expansion was unavailable; only direct matches are shown.")
+    else:
+        try:
+            products = search_products(query)
+        except (requests.RequestException, ValueError):
+            # Cached search must still work without the optional local model.
+            # If Supabase itself is unavailable this second direct attempt raises
+            # its normal API error instead of pretending there are no products.
+            products = search_products(query, allow_model=False)
+            collection["errors"].append("Ollama query expansion was unavailable; only direct catalog matches are shown.")
+    collection["matched"] = len(products)
+    intent = parse_requirements(query)
+    collection["requirements"] = {
+        "product_type": intent["product_type"],
+        "specifications": [
+            {"name": name, "value": str(value), "comparison": comparison}
+            for name, value, comparison in intent["specs"]
+        ],
+    }
+    if not products and (intent["product_type"] or intent["specs"]):
+        collection["message"] = collection.get("message", "") + (
+            " No listings could be verified against your product type and requested specifications; unrelated products were excluded."
+        )
+    return {"products": products, "collection": collection}
 
 
 class SearchHandler(BaseHTTPRequestHandler):
@@ -527,7 +649,7 @@ class SearchHandler(BaseHTTPRequestHandler):
             if not isinstance(query, str) or not query.strip() or len(query) > 300:
                 self.send_json(400, {"error": "Enter a search query under 300 characters."})
                 return
-            self.send_json(200, {"products": search_products(query.strip())})
+            self.send_json(200, search_response(query.strip()))
         except ConfigurationError as error:
             self.send_json(503, {"error": str(error)})
         except requests.ConnectionError as error:

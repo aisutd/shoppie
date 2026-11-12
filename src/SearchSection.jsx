@@ -20,7 +20,7 @@ function SearchSection({ onResults }) {
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Search failed. Please try again.')
-      onResults({ query: searchQuery, products: data.products || [] })
+      onResults({ query: searchQuery, products: data.products || [], collection: data.collection || null })
     } catch (searchError) {
       setError(searchError.message || 'Could not reach local search. Start the local API and try again.')
     } finally {
@@ -47,13 +47,18 @@ function SearchSection({ onResults }) {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             required
-            placeholder="Try “laptop” or “coffee maker”"
+            placeholder="Try “MacBook Air M5 24 GB RAM”"
             className="min-w-0 flex-1 rounded-xl bg-transparent px-4 py-3 text-base text-white outline-none placeholder:text-blue-100/45 focus-visible:ring-2 focus-visible:ring-blue-400"
           />
           <button type="submit" disabled={isSearching} className="rounded-xl bg-blue-500 px-7 py-3 font-semibold text-white transition hover:bg-blue-400 disabled:cursor-wait disabled:opacity-70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300">
             {isSearching ? 'Searching…' : 'Search'}
           </button>
         </form>
+        {isSearching && (
+          <p className="mt-4 text-sm text-blue-100/70" role="status" aria-live="polite">
+            Checking Best Buy for current listings, saving products, and finding matches. This can take a minute or longer.
+          </p>
+        )}
         {error && <p className="mt-4 text-sm text-rose-200" role="alert">{error}</p>}
       </div>
     </section>
