@@ -11,6 +11,14 @@ from scraper import live_search as live
 URL = 'https://www.bestbuy.com/product/synthetic-24-inch-monitor/TEST24'
 OTHER = 'https://www.bestbuy.com/product/other-monitor/OTHER'
 
+@pytest.fixture(autouse=True)
+def disable_walmart_by_default(monkeypatch):
+    monkeypatch.setattr(
+        live,
+        "discover_walmart_products",
+        lambda *args, **kwargs: [],
+    )
+
 
 def card(url=URL, price='$129.99', title='Synthetic 24-inch 160Hz Monitor'):
     return f'''<div class="product-list-item-sv">

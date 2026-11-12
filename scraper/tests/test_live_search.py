@@ -18,6 +18,14 @@ from scraper.bestbuy_search import DiscoveryError
 URL = "https://www.bestbuy.com/product/synthetic-macbook-air/TESTM5"
 DATABASE = SimpleNamespace(url="https://synthetic.supabase.co", secret_key="sb_secret_SYNTHETIC")
 
+@pytest.fixture(autouse=True)
+def disable_walmart_by_default(monkeypatch):
+    monkeypatch.setattr(
+        live,
+        "discover_walmart_products",
+        lambda *args, **kwargs: [],
+    )
+
 
 @pytest.fixture
 def candidate():
