@@ -1,5 +1,3 @@
-"""Local-only product search API backed by Ollama and the Supabase products table."""
-
 import json
 import math
 import re
@@ -200,7 +198,6 @@ def filter_by_category(query, products, category_source=None):
     """When a query names a catalog category, keep results from that category."""
     requested_type = product_type(query)
     if requested_type:
-        # Intent is independent of which categories happen to be in the catalog.
         return [product for product in products if listing_type(product) == requested_type]
     query_tokens = list(dict.fromkeys(normalize_tokens(query)))
     category_tokens = {
@@ -297,15 +294,11 @@ def extract_memory_gb(product):
             re.IGNORECASE,
         ),
     )
-    # The selected listing title takes priority over a generic description
-    # mentioning other configurations (e.g. 'available in 8, 16 and 24 GB').
     for field in ("title", "description"):
         text = str(product.get(field) or "")
         amounts = set()
         for pattern_index, pattern in enumerate(patterns):
             for match in pattern.finditer(text):
-                # '24GB RAM 512GB SSD' must not turn RAM+512GB into a
-                # second memory claim; RAM already belongs to the preceding 24GB.
                 if pattern_index == 1 and re.search(r"\d\s*(?:gb|gib)\s*$", text[:match.start()], re.I):
                     continue
                 amounts.add(Decimal(match.group(1)))
@@ -315,11 +308,6 @@ def extract_memory_gb(product):
 
 
 def apply_identity_requirements(query, products):
-    """Explicit Apple chip/family requirements cannot be overridden by fuzzy/AI matches.
-
-    Use the selected listing title as evidence, not generic descriptions listing
-    compatibility with other devices. Missing evidence remains a non-match.
-    """
     chip_pattern = r"\bm[1-9]\d?(?:\s+(?:pro|max|ultra))?\b"
     requested_chips = {" ".join(m.group().lower().split()) for m in re.finditer(chip_pattern, query, re.I)}
     family = re.search(r"\bmacbook\s+(air|pro)\b", query, re.I)
@@ -368,7 +356,6 @@ def apply_memory_condition(products, condition):
 
 
 def select_cheap_products(products):
-    """Keep the lowest-priced 30% of the already-matched product set."""
     if not products:
         return []
     ordered = sorted(products, key=lambda product: float(product["price"]))
@@ -460,8 +447,6 @@ def search_products(query, catalog=None, allow_model=True):
     category_catalog = apply_identity_requirements(original_query, filter_by_category(text_query, catalog))
     intent = parse_requirements(original_query)
     if not category_catalog and (intent["product_type"] or intent["specs"] or re.search(r"\bm[1-9]\d?\b|\bmacbook\s+(?:air|pro)\b", original_query, re.I)):
-        # The loaded candidates/catalog contain no evidence for the explicit
-        # identity. Asking a model for synonyms cannot establish that identity.
         return []
     matching_memory_products = apply_memory_condition(category_catalog, memory_condition)
     if memory_condition and not matching_memory_products:
@@ -505,8 +490,6 @@ def search_products(query, catalog=None, allow_model=True):
         products.sort(key=lambda product: float(product["price"]))
         return products[:MAX_RESULTS]
 
-    # Keep the local model available as a slower fallback for conceptual searches
-    # that have no useful token overlap with the catalog.
     if not allow_model:
         return []
     return search_with_model_terms(
@@ -522,8 +505,6 @@ def search_with_model_terms(
 ):
     terms = interpret_query(query)
     if candidate_products is not None:
-        # Keep model-expanded searches inside THIS request's candidate set.
-        # Model terms cannot introduce unseen URLs or different catalog records.
         products = []
         for candidate in candidate_products:
             if any(fuzzy_match(term, candidate)[0] >= 0.5 for term in terms):
@@ -576,7 +557,6 @@ def search_with_model_terms(
 
 
 def search_response(query):
-    """Collect fresh Best Buy candidates, save them, then apply existing ranking."""
     database = load_database_config()
     _, discovery_query = parse_cheap_preference(query)
     _, discovery_query = parse_price_condition(discovery_query)
@@ -589,24 +569,18 @@ def search_response(query):
     ) or query
     candidates, collection = collect_live_products(discovery_query, database)
     if collection["saved"]:
-        # Another search should not use the five-minute pre-collection snapshot.
         with _catalog_lock:
             _catalog_cache["expires_at"] = 0
     if candidates:
         try:
             products = search_products(query, catalog=candidates)
         except (requests.RequestException, ValueError):
-            # Collection may succeed even when optional Ollama expansion fails.
-            # Keep the successfully saved records, but don't show unranked items.
             products = search_products(query, catalog=candidates, allow_model=False)
             collection["errors"].append("Optional AI query expansion was unavailable; only direct matches are shown.")
     else:
         try:
             products = search_products(query)
         except (requests.RequestException, ValueError):
-            # Cached search must still work without the optional local model.
-            # If Supabase itself is unavailable this second direct attempt raises
-            # its normal API error instead of pretending there are no products.
             products = search_products(query, allow_model=False)
             collection["errors"].append("Ollama query expansion was unavailable; only direct catalog matches are shown.")
     collection["matched"] = len(products)
@@ -632,8 +606,18 @@ class SearchHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(encoded)))
         self.send_header("Cache-Control", "no-store")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
         self.wfile.write(encoded)
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
 
     def do_POST(self):
         if self.path != "/api/search":
@@ -677,8 +661,37 @@ class SearchHandler(BaseHTTPRequestHandler):
         except Exception:
             self.send_json(500, {"error": "Local search failed. Check the API terminal for details."})
 
+    def do_GET(self):
+        if self.path == "/api/deals":
+            try:
+                deals = fetch_deals_from_database()
+                self.send_json(200, {"deals": deals})
+            except ConfigurationError as error:
+                self.send_json(503, {"error": str(error)})
+            return
+        self.send_json(404, {"error": "Not found."})
+
     def log_message(self, format, *args):
         print(f"[local-search] {format % args}")
+
+
+def fetch_deals_from_database():
+    database = load_database_config()
+    result = requests.get(
+        f"{database.url}/rest/v1/products",
+        headers={
+            "apikey": database.secret_key,
+            "Authorization": f"Bearer {database.secret_key}",
+        },
+        params={
+            "select": "id,title,description,image_url,price,currency,product_url,source,category",
+            "order": "price.asc",
+            "limit": "12",
+        },
+        timeout=20,
+    )
+    result.raise_for_status()
+    return result.json()
 
 
 if __name__ == "__main__":
