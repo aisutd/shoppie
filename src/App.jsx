@@ -7,7 +7,25 @@ import Navbar from './Navbar.jsx'
 
 function App() {
   const [searchResults, setSearchResults] = useState(null)
+  const [destination, setDestination] = useState(null)
   useSmoothWheelScroll()
+
+  const navigateHome = () => {
+    setSearchResults(null)
+    setDestination('home')
+  }
+  const newSearch = () => {
+    setSearchResults(null)
+    setDestination('search')
+  }
+
+  useEffect(() => {
+    if (!destination) return
+    window.cancelSmoothScroll?.()
+    document.getElementById(destination)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    window.history.replaceState(null, '', `#${destination}`)
+    setDestination(null)
+  }, [destination, searchResults])
 
   useEffect(() => {
     if (searchResults) {
@@ -17,7 +35,7 @@ function App() {
 
   return (
     <main className="relative isolate overflow-hidden bg-gradient-to-b from-[#102746] via-[#0c203c] to-[#102746] text-white">
-        <Navbar isShowingResults={Boolean(searchResults)} onBack={() => setSearchResults(null)} />
+        <Navbar isShowingResults={Boolean(searchResults)} onHome={navigateHome} onBack={newSearch} />
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_12%,_rgba(37,99,180,0.24),_transparent_52%)]" aria-hidden="true" />
         <div className="animate-aurora pointer-events-none absolute -inset-[20%] bg-[radial-gradient(ellipse_at_30%_35%,_rgba(37,99,180,0.3),_transparent_42%),radial-gradient(ellipse_at_75%_65%,_rgba(56,130,220,0.2),_transparent_40%)] bg-[length:160%_160%] motion-reduce:animate-none" aria-hidden="true" />
         <div className="animate-drift pointer-events-none absolute -left-40 top-[28rem] size-[28rem] rounded-full bg-blue-500/15 blur-3xl motion-reduce:animate-none" aria-hidden="true" />
@@ -30,7 +48,7 @@ function App() {
           </div>
         </section>
         {searchResults ? (
-          <SearchResults search={searchResults} onBack={() => setSearchResults(null)} />
+          <SearchResults search={searchResults} onBack={newSearch} onRefined={setSearchResults} />
         ) : (
           <>
             <SearchSection onResults={setSearchResults} />

@@ -17,6 +17,12 @@ from scraper.bestbuy_search import DiscoveryError
 
 URL = "https://www.bestbuy.com/product/synthetic-macbook-air/TESTM5"
 DATABASE = SimpleNamespace(url="https://synthetic.supabase.co", secret_key="sb_secret_SYNTHETIC")
+LOAD_SAVED_CANDIDATES = api.load_saved_candidates
+
+@pytest.fixture(autouse=True)
+def saved_candidate_readback(monkeypatch):
+    monkeypatch.setattr(api, "load_saved_candidates", lambda database, candidates: candidates)
+
 
 @pytest.fixture(autouse=True)
 def disable_walmart_by_default(monkeypatch):
@@ -269,11 +275,11 @@ def test_redirect_to_different_product_is_not_saved(monkeypatch, candidate):
     save.assert_not_called()
 
 
-def test_save_failure_keeps_fresh_results_and_reports_it(monkeypatch, candidate):
+def test_save_failure_excludes_unsaved_results_and_reports_it(monkeypatch, candidate):
     _, save = prepare_collection(monkeypatch, candidate)
     save.side_effect = ValueError("secret details must not be echoed")
     products, report = live.collect_live_products("MacBook", DATABASE)
-    assert len(products) == 1 and report["saved"] == 0
+    assert products == [] and report["saved"] == 0
     assert report["status"] == "partial" and report["failed_saves"] == 1
     assert "secret details" not in str(report)
 
@@ -291,7 +297,7 @@ def test_failed_page_does_not_discard_later_success(monkeypatch, candidate):
     assert len(products) == 1 and report["failed"] == 1 and report["saved"] == 1
 
 
-def test_busy_collection_uses_catalog_fallback():
+def test_busy_collection_returns_no_live_results():
     assert live._collection_lock.acquire(blocking=False)
     try:
         products, report = live.collect_live_products("MacBook", DATABASE)
@@ -319,22 +325,22 @@ def test_live_search_bypasses_old_catalog_and_invalidates_cache(monkeypatch, can
     assert "24" in collector.call_args.args[0]
 
 
-def test_failed_collection_preserves_existing_catalog_search(monkeypatch, candidate):
+def test_failed_collection_never_returns_existing_catalog(monkeypatch, candidate):
     monkeypatch.setattr(api, "load_database_config", lambda: DATABASE)
-    monkeypatch.setattr(api, "collect_live_products", lambda *a: ([], {"saved": 0, "errors": [], "result_source": "catalog"}))
-    monkeypatch.setattr(api, "load_catalog", lambda *a: [candidate])
-    assert api.search_response("MacBook")["collection"]["matched"] == 1
+    monkeypatch.setattr(api, "collect_live_products", lambda *a, **kw: ([], {"saved": 0, "errors": [], "result_source": "catalog"}))
+    monkeypatch.setattr(api, "load_catalog", lambda *a, **kw: [candidate])
+    assert api.search_response("MacBook")["collection"]["matched"] == 0
 
 
 def test_model_expansion_cannot_leak_unrelated_catalog_records(monkeypatch, candidate):
-    monkeypatch.setattr(api, "interpret_query", lambda *a: ["MacBook"])
+    monkeypatch.setattr(api, "interpret_query", lambda *a, **kw: ["MacBook"])
     monkeypatch.setattr(api.requests, "get", Mock(side_effect=AssertionError("no global database read")))
     assert api.search_with_model_terms("study machine", DATABASE, candidate_products=[candidate])[0]["product_url"] == URL
 
 
 def test_model_outage_does_not_lose_collected_data(monkeypatch, candidate):
     monkeypatch.setattr(api, "load_database_config", lambda: DATABASE)
-    monkeypatch.setattr(api, "collect_live_products", lambda *a: ([candidate], {"saved": 1, "errors": [], "result_source": "live"}))
+    monkeypatch.setattr(api, "collect_live_products", lambda *a, **kw: ([candidate], {"saved": 1, "errors": [], "result_source": "live"}))
     monkeypatch.setattr(api, "interpret_query", Mock(side_effect=ValueError("model unavailable")))
     response = api.search_response("zzzzunknown")
     assert response["products"] == [] and response["collection"]["errors"]
@@ -416,13 +422,11 @@ def test_homepage_aggregates_retailers_and_only_marks_verified_discounts(candida
     grouped = {group["id"]: group["products"] for group in collections}
 
     assert grouped["bestbuy-picks"] == [bestbuy_offer, unverified_offer]
-    assert grouped["walmart-picks"] == [walmart_offer]
+    assert grouped["walmart-picks"] == []
     assert [product["title"] for product in grouped["deep-discounts"]] == [
-        "Synthetic ceramic mug",
         "Synthetic 27-inch monitor",
     ]
     assert [product["savings_percent"] for product in grouped["deep-discounts"]] == [
-        33.3,
         27.8,
     ]
 
@@ -462,7 +466,7 @@ def test_homepage_discovery_aggregates_categories_and_deduplicates(monkeypatch, 
     assert all(limit == 4 for _, _, limit in calls)
     assert len(bestbuy_products) == len(api.HOMEPAGE_SEARCHES) - 1
     assert len(walmart_products) == len(api.HOMEPAGE_SEARCHES)
-    assert {"monitors", "laptops", "toys-games", "kitchen-dining"} <= {
+    assert {"monitors", "laptops"} <= {
         product["category"] for product in bestbuy_products + walmart_products
     }
     assert "phones" in {product["category"] for product in bestbuy_products + walmart_products}
@@ -476,26 +480,26 @@ def test_homepage_discovery_aggregates_categories_and_deduplicates(monkeypatch, 
         ("Silver Buffalo Peanuts Halloween Mummy Snoopy Ceramic Soup Mug", "kitchen-dining"),
     ],
 )
-def test_homepage_corrects_legacy_electronics_category(candidate, title, category):
+def test_homepage_excludes_legacy_non_tech_products(candidate, title, category):
     candidate.update(category="electronics", title=title)
 
     products = api.deal_collections([candidate])[0]["products"]
 
-    assert products[0]["category"] == category
+    assert products == []
     assert candidate["category"] == "electronics"
 
 
-def test_search_response_corrects_legacy_electronics_category(monkeypatch, candidate):
+def test_search_response_does_not_fall_back_to_non_tech_catalog(monkeypatch, candidate):
     candidate.update(category="electronics", title="Shopkins Happy Places Delivery Pack")
     monkeypatch.setattr(api, "load_database_config", lambda: DATABASE)
-    monkeypatch.setattr(api, "collect_live_products", lambda *args: (
+    monkeypatch.setattr(api, "collect_live_products", lambda *args, **kwargs: (
         [], {"saved": 0, "errors": [], "result_source": "catalog"},
     ))
-    monkeypatch.setattr(api, "load_catalog", lambda *args: [candidate])
+    monkeypatch.setattr(api, "load_catalog", lambda *args, **kwargs: [candidate])
 
     response = api.search_response("Shopkins")
 
-    assert response["products"][0]["category"] == "toys-games"
+    assert response["products"] == []
 
 
 def test_homepage_deals_endpoint_reads_database_catalog(monkeypatch, candidate):
@@ -622,7 +626,7 @@ def test_unknown_chip_and_wrong_family_do_not_satisfy_explicit_request(candidate
 
 
 def test_ai_fallback_cannot_override_chip_requirement(monkeypatch, candidate):
-    monkeypatch.setattr(api, "interpret_query", lambda *a: ["MacBook"])
+    monkeypatch.setattr(api, "interpret_query", lambda *a, **kw: ["MacBook"])
     wrong = {**candidate, "title": "MacBook Air M4 24GB RAM"}
     assert api.search_with_model_terms("MacBook M5", DATABASE, candidate_products=[wrong], original_query="MacBook Air M5") == []
 
@@ -641,14 +645,15 @@ def test_discovery_query_collapses_memory_phrase(monkeypatch, candidate):
     assert collector.call_args.args[0].lower() == "macbook air m5 24gb"
 
 
-def test_missing_ollama_does_not_break_catalog_fallback(monkeypatch):
+def test_empty_live_collection_does_not_call_ollama(monkeypatch):
     monkeypatch.setattr(api, "load_database_config", lambda: DATABASE)
-    monkeypatch.setattr(api, "load_catalog", lambda *a: [])
-    monkeypatch.setattr(api, "collect_live_products", lambda *a: ([], {"saved": 0, "errors": [], "result_source": "catalog"}))
+    monkeypatch.setattr(api, "load_catalog", lambda *a, **kw: [])
+    monkeypatch.setattr(api, "collect_live_products", lambda *a, **kw: ([], {"saved": 0, "errors": [], "result_source": "catalog"}))
     monkeypatch.setattr(api, "interpret_query", Mock(side_effect=api.requests.ConnectionError("offline")))
     response = api.search_response("unknownconcept")
     assert response["products"] == []
-    assert "Ollama" in response["collection"]["errors"][0]
+    api.interpret_query.assert_not_called()
+    assert response["collection"]["errors"] == []
 
 
 def test_memory_mismatch_does_not_trigger_unnecessary_ai(monkeypatch, candidate):
@@ -724,4 +729,139 @@ def test_multiple_live_records_flow_through_collection_and_spec_filters(monkeypa
     response = api.search_response("MacBook Air M5 24 GB RAM")
     assert {product["product_url"] for product in response["products"]} == {record["product_url"] for record in records[:2]}
     assert response["collection"]["matched"] == 2
-    assert response["collection"]["saved"] == save.call_count == 4
+    assert response["collection"]["saved"] == save.call_count == 2
+
+
+@pytest.mark.parametrize('title,category,allowed', [
+    ('LEGO Star Wars Building Set', 'electronics', False),
+    ('Barbie Dreamhouse', 'other', False),
+    ('KitchenAid Stand Mixer', 'other', False),
+    ('Mystery Product', ' kitchenware ', False),
+    ('LEGO Star Wars Nintendo Switch Video Game', 'gaming', True),
+    ('Xbox Wireless Controller', 'gaming', True),
+    ('Digital Audio Mixer', 'computer-accessories', True),
+    ('Laptop', 'laptops', True),
+    ('Phone', 'phones', True),
+    ('Tablet', 'tablets', True),
+    ('Monitor', 'monitors', True),
+    ('Keyboard', 'keyboards', True),
+    ('Mouse', 'mice', True),
+    ('Speaker', 'speakers', True),
+    ('SSD', 'storage', True),
+    ('Camera', 'cameras', True),
+    ('Television', 'televisions', True),
+    ('Ceramic Mug', 'electronics', False),
+    ('Toy Doll', 'other', False),
+    ('Mystery Product', 'clothing', False),
+    ('Wireless Headphones', 'headphones', True),
+    ('Unknown Model ZX100', 'other', True),
+    ('Smart home hub', 'electronics', True),
+])
+def test_conservative_tech_filter(title, category, allowed):
+    assert live.is_tech_product({'title': title, 'category': category}) is allowed
+
+
+@pytest.mark.parametrize('title,category', [('Ceramic Mug', 'electronics'), ('Unknown Model ZX100', 'clothing')])
+def test_non_tech_live_candidates_are_not_saved(monkeypatch, candidate, title, category):
+    candidate.update(title=title, category=category)
+    _, save = prepare_collection(monkeypatch, candidate)
+    products, report = live.collect_live_products('ceramic mug', DATABASE)
+    assert products == [] and report['saved'] == 0
+    save.assert_not_called()
+
+
+@pytest.mark.parametrize('retailer', ['bestbuy', 'walmart'])
+def test_retailer_endpoints_exclude_non_tech(monkeypatch, candidate, retailer):
+    mug = dict(candidate, title='Ceramic Mug', category='electronics')
+    monkeypatch.setattr(api, f'discover_{retailer}_products', lambda *a, **kw: [mug, candidate])
+    products = getattr(api, f'{retailer}_products_response')('products')['products']
+    assert [p['title'] for p in products] == [candidate['title']]
+
+
+def test_non_tech_is_excluded_from_catalog_and_ai(monkeypatch, candidate):
+    mug = dict(candidate, title='Ceramic Mug', category='electronics')
+    monkeypatch.setattr(api, 'load_database_config', lambda: DATABASE)
+    monkeypatch.setattr(api, 'interpret_query', lambda *a: ['mug'])
+    assert api.search_products('ceramic mug', [mug], allow_model=False) == []
+    assert api.search_with_model_terms('ceramic mug', DATABASE, candidate_products=[mug]) == []
+
+
+def test_homepage_discovery_rejects_non_tech_without_relabeling(monkeypatch, candidate):
+    assert 'toys' not in api.HOMEPAGE_SEARCHES and 'coffee mug' not in api.HOMEPAGE_SEARCHES
+    mug = dict(candidate, title='Ceramic Mug', category='other')
+    unknown = dict(candidate, title='Unknown ZX100', category='other', product_url=URL + 'UNKNOWN')
+    monkeypatch.setattr(api, 'discover_bestbuy_products', lambda *a, **kw: [mug, unknown])
+    monkeypatch.setattr(api, 'discover_walmart_products', lambda *a, **kw: [])
+    bestbuy, walmart, errors = api.discover_homepage_products()
+    assert [p['title'] for p in bestbuy] == ['Unknown ZX100']
+    assert bestbuy[0]['category'] == 'other'
+    assert walmart == errors == []
+
+
+def test_database_readback_is_scoped_to_saved_urls(monkeypatch, candidate):
+    unrelated = dict(candidate, product_url=URL + 'OTHER')
+    response = Mock()
+    response.json.return_value = [candidate, unrelated]
+    get = Mock(return_value=response)
+    monkeypatch.setattr(api.requests, 'get', get)
+    assert LOAD_SAVED_CANDIDATES(DATABASE, [candidate]) == [candidate]
+    assert get.call_args.kwargs['params']['product_url'] == 'in.("' + URL + '")'
+    get.reset_mock()
+    assert LOAD_SAVED_CANDIDATES(DATABASE, []) == []
+    get.assert_not_called()
+
+
+def test_live_response_saves_then_reads_then_ranks(monkeypatch, candidate):
+    events = []
+    prepare_collection(monkeypatch, candidate)
+    monkeypatch.setattr(api, 'load_database_config', lambda: DATABASE)
+    monkeypatch.setattr(live.tech_scraper, 'upload_to_supabase', lambda *a, **kw: events.append('save'))
+
+    def readback(database, records):
+        events.append('read')
+        assert [p['product_url'] for p in records] == [URL]
+        return [dict(records[0], id='database-id')]
+
+    def rank(query, catalog):
+        events.append('rank')
+        assert catalog[0]['id'] == 'database-id'
+        return catalog
+
+    monkeypatch.setattr(api, 'load_saved_candidates', readback)
+    monkeypatch.setattr(api, 'search_products', rank)
+    monkeypatch.setattr(api, 'load_catalog', Mock(side_effect=AssertionError('no global catalog')))
+    assert api.search_response('MacBook Air under $1200')['collection']['matched'] == 1
+    assert events == ['save', 'read', 'rank']
+
+
+def test_only_records_meeting_repeated_budget_are_saved(monkeypatch, candidate):
+    monkeypatch.setattr(api, 'load_database_config', lambda: DATABASE)
+    records = [dict(candidate, price=price, product_url=URL + str(index))
+               for index, price in enumerate(['899.00', '999.00', '1299.00'])]
+    by_url = {record['product_url']: record for record in records}
+    monkeypatch.setattr(live, 'discover_bestbuy_urls', lambda *a, **kw: list(by_url))
+    monkeypatch.setattr(live.tech_scraper, 'fetch_page', lambda url, **kw: (url, url))
+    monkeypatch.setattr(live.tech_scraper, 'extract_product', lambda html, url: by_url[url])
+    save = Mock()
+    monkeypatch.setattr(live.tech_scraper, 'upload_to_supabase', save)
+    response = api.search_response('MacBook Air; less than 1200 dollars; less than 900 dollars')
+    assert [p['price'] for p in response['products']] == ['899.00']
+    assert response['collection']['saved'] == save.call_count == 1
+    assert save.call_args.args[0]['price'] == '899.00'
+
+
+def test_frontend_and_backend_eligibility_agree():
+    import json
+    import subprocess
+    products = [{'title': title, 'category': category} for title in (
+        'Unknown ZX100', 'Ceramic Mug', 'Shopkins Delivery Pack', 'LEGO Star Wars Set',
+        'Barbie Dreamhouse', 'KitchenAid Mixer', 'Xbox Controller', 'Laptop',
+        'LEGO Nintendo Switch Video Game', 'Headphones', 'Camera', 'Digital Audio Mixer',
+    ) for category in ('other', 'electronics', 'gaming', 'kitchenware', 'toys-games', ' laptops ')]
+    script = """import { isTechProduct } from './src/productEligibility.js';
+let input = ''; for await (const chunk of process.stdin) input += chunk;
+console.log(JSON.stringify(JSON.parse(input).map(isTechProduct)));"""
+    result = subprocess.run(['node', '--input-type=module', '-e', script],
+                            input=json.dumps(products), capture_output=True, text=True,
+                            cwd=Path(__file__).resolve().parents[2], timeout=20, check=True)
+    assert json.loads(result.stdout) == [live.is_tech_product(product) for product in products]

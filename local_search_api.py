@@ -16,7 +16,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import requests
 
 from scraper.config import ConfigurationError, load_database_config
-from scraper.live_search import CollectedProduct, collect_live_products, infer_category
+from scraper.live_search import CollectedProduct, collect_live_products, infer_category, is_tech_product
 from scraper.bestbuy_search import DiscoveryError, discover_bestbuy_products
 from scraper.walmart_search import WalmartDiscoveryError, discover_walmart_products
 from scraper.search_intent import apply_requirements, listing_type, parse_requirements, product_type
@@ -43,8 +43,6 @@ HOMEPAGE_SEARCHES = (
     "cell phone",
     "headphones",
     "gaming controller",
-    "toys",
-    "coffee mug",
 )
 HOMEPAGE_CATEGORIES = {
     "laptop": "laptops",
@@ -52,8 +50,6 @@ HOMEPAGE_CATEGORIES = {
     "cell phone": "phones",
     "headphones": "headphones",
     "gaming controller": "gaming",
-    "toys": "toys-games",
-    "coffee mug": "kitchen-dining",
 }
 PRICE_AMOUNT = r"\$?\s*((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,2})?)\s*(?:dollars?|usd)?"
 _catalog_cache = {"expires_at": 0, "products": []}
@@ -158,7 +154,9 @@ def correct_legacy_categories(products):
 
 def deal_collections(products, bestbuy_products=(), walmart_products=()):
     """Build homepage groups from the catalog and verified retailer offers."""
-    products = correct_legacy_categories(products)
+    products = [product for product in correct_legacy_categories(products) if is_tech_product(product)]
+    bestbuy_products = [product for product in bestbuy_products if is_tech_product(product)]
+    walmart_products = [product for product in walmart_products if is_tech_product(product)]
     priced_products = []
     for product in products:
         try:
@@ -259,16 +257,14 @@ def discover_homepage_products():
             if error:
                 errors.append(f"{source} ({query}): {error}")
             for product in products:
+                if not is_tech_product(product):
+                    continue
                 url = product["product_url"]
                 if url in seen_urls:
                     continue
                 seen_urls.add(url)
                 category = infer_category(product["title"])
-                product["category"] = (
-                    HOMEPAGE_CATEGORIES[query]
-                    if category == "other"
-                    else category
-                )
+                product["category"] = category
                 by_retailer[source].append(product)
 
     return by_retailer["bestbuy.com"], by_retailer["walmart.com"], errors
@@ -502,6 +498,8 @@ def apply_identity_requirements(query, products):
     family = re.search(r"\bmacbook\s+(air|pro)\b", query, re.I)
     filtered = []
     for product in apply_requirements(query, products):
+        if not is_tech_product(product):
+            continue
         title = str(product.get("title") or "")
         title_chips = {" ".join(m.group().lower().split()) for m in re.finditer(chip_pattern, title, re.I)}
         if requested_chips and not requested_chips.issubset(title_chips):
@@ -563,16 +561,27 @@ def select_cheap_products(products):
 
 
 def parse_price_condition(query):
-    between = re.search(
-        rf"\bbetween\s+{PRICE_AMOUNT}\s+(?:and|to)\s+{PRICE_AMOUNT}",
-        query,
-        re.IGNORECASE,
-    )
-    if between:
-        low, high = (Decimal(value.replace(",", "")) for value in between.groups())
-        if low > high:
-            low, high = high, low
-        return {"minimum": low, "maximum": high}, query[:between.start()] + " " + query[between.end():]
+    condition = {}
+    spans = []
+
+    def add(bound, amount, exclusive=False):
+        previous = condition.get(bound)
+        stricter = previous is None or (amount < previous if bound == "maximum" else amount > previous)
+        if stricter:
+            condition[bound] = amount
+            condition[f"{bound}_exclusive"] = exclusive
+        elif amount == previous:
+            condition[f"{bound}_exclusive"] = condition.get(f"{bound}_exclusive", False) or exclusive
+
+    for match in re.finditer(
+        rf"\bbetween\s+{PRICE_AMOUNT}\s+(?:and|to)\s+{PRICE_AMOUNT}", query, re.I,
+    ):
+        if is_non_price_unit_after(match, query):
+            continue
+        low, high = sorted(Decimal(value.replace(",", "")) for value in match.groups())
+        add("minimum", low)
+        add("maximum", high)
+        spans.append(match.span())
 
     operators = (
         ("maximum", r"\b(?:under|below|less\s+than|cheaper\s+than)\s+", True),
@@ -581,14 +590,14 @@ def parse_price_condition(query):
         ("minimum", r"\b(?:at\s+least|minimum|min)\s+", False),
     )
     for bound, operator, exclusive in operators:
-        match = re.search(operator + PRICE_AMOUNT, query, re.IGNORECASE)
-        if match and not is_non_price_unit_after(match, query):
-            amount_text = re.search(PRICE_AMOUNT, match.group(0), re.IGNORECASE).group(1)
-            amount = Decimal(amount_text.replace(",", ""))
-            condition = {bound: amount, f"{bound}_exclusive": exclusive}
-            return condition, query[:match.start()] + " " + query[match.end():]
-
-    return None, query
+        for match in re.finditer(operator + PRICE_AMOUNT, query, re.I):
+            if is_non_price_unit_after(match, query) or any(start <= match.start() < end for start, end in spans):
+                continue
+            add(bound, Decimal(match.group(1).replace(",", "")), exclusive)
+            spans.append(match.span())
+    for start, end in sorted(spans, reverse=True):
+        query = query[:start] + " " + query[end:]
+    return condition or None, query
 
 
 def apply_price_condition(products, condition):
@@ -634,6 +643,7 @@ def search_products(query, catalog=None, allow_model=True):
     database = load_database_config()
     if catalog is None:
         catalog = load_catalog(database)
+    catalog = [product for product in catalog if is_tech_product(product)]
     category_catalog = apply_identity_requirements(original_query, filter_by_category(text_query, catalog))
     intent = parse_requirements(original_query)
     if not category_catalog and (intent["product_type"] or intent["specs"] or re.search(r"\bm[1-9]\d?\b|\bmacbook\s+(?:air|pro)\b", original_query, re.I)):
@@ -752,6 +762,24 @@ def search_with_model_terms(
     return products
 
 
+def load_saved_candidates(database, candidates):
+    """Read back only URLs successfully saved by this live request."""
+    urls = {product["product_url"] for product in candidates}
+    if not urls:
+        return []
+    result = requests.get(
+        f"{database.url}/rest/v1/products",
+        headers={"apikey": database.secret_key, "Authorization": f"Bearer {database.secret_key}"},
+        params={
+            "select": "id,title,description,image_url,price,currency,product_url,source,category,scraped_at",
+            "product_url": "in.(" + ",".join(json.dumps(url) for url in sorted(urls)) + ")",
+        },
+        timeout=20,
+    )
+    result.raise_for_status()
+    return [product for product in result.json() if product.get("product_url") in urls]
+
+
 def search_response(query):
     """Collect fresh retailer candidates, save them, then apply existing ranking."""
     database = load_database_config()
@@ -764,11 +792,20 @@ def search_response(query):
     discovery_query = " ".join(
         word for word in discovery_query.split() if word.casefold() not in SEARCH_STOP_WORDS
     ) or query
-    candidates, collection = collect_live_products(discovery_query, database)
+    def matches_requirements(record):
+        products = apply_identity_requirements(query, [record])
+        memory, remaining = parse_memory_condition(query)
+        price, _ = parse_price_condition(remaining)
+        return bool(apply_price_condition(apply_memory_condition(products, memory), price))
+
+    candidates, collection = collect_live_products(
+        discovery_query, database, match_record=matches_requirements,
+    )
     if collection["saved"]:
         # Another search should not use the five-minute pre-collection snapshot.
         with _catalog_lock:
             _catalog_cache["expires_at"] = 0
+    candidates = load_saved_candidates(database, candidates)
     if candidates:
         try:
             products = search_products(query, catalog=candidates)
@@ -778,14 +815,7 @@ def search_response(query):
             products = search_products(query, catalog=candidates, allow_model=False)
             collection["errors"].append("Optional AI query expansion was unavailable; only direct matches are shown.")
     else:
-        try:
-            products = search_products(query)
-        except (requests.RequestException, ValueError):
-            # Cached search must still work without the optional local model.
-            # If Supabase itself is unavailable this second direct attempt raises
-            # its normal API error instead of pretending there are no products.
-            products = search_products(query, allow_model=False)
-            collection["errors"].append("Ollama query expansion was unavailable; only direct catalog matches are shown.")
+        products = []
     collection["matched"] = len(products)
     products = correct_legacy_categories(products)
     intent = parse_requirements(query)
@@ -808,6 +838,8 @@ def walmart_products_response(query):
     records = discover_walmart_products(query, limit=6)
     products = []
     for record in records:
+        if not is_tech_product(record):
+            continue
         record["category"] = infer_category(record["title"])
         products.append(CollectedProduct.model_validate(record).model_dump(mode="json"))
     return {"products": products}
@@ -818,6 +850,8 @@ def bestbuy_products_response(query):
     records = discover_bestbuy_products(query, limit=6)
     products = []
     for record in records:
+        if not is_tech_product(record):
+            continue
         record["category"] = infer_category(record["title"])
         products.append(CollectedProduct.model_validate(record).model_dump(mode="json"))
     return {"products": products}

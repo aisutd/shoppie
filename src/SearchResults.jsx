@@ -185,22 +185,25 @@ function SearchResults({ search, onBack, onRefined }) {
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {retailer.products.map((product, index) => (
-                    <article key={product.id || product.product_url} className={`anim-scale-in d-${(index % 3) + 1} group flex min-h-[27rem] flex-col overflow-hidden rounded-2xl border border-blue-100/10 bg-[#0b1d35]/70 text-left shadow-lg shadow-black/10 transition duration-300 hover:-translate-y-1 hover:border-blue-200/30 hover:bg-[#102746] hover:shadow-xl hover:shadow-black/20`}>
-                      <button type="button" onClick={() => setSelectedProduct(product)} aria-label={`View details for ${product.title}`} className="flex flex-1 flex-col text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-blue-300">
-                        <ProductArtwork product={product} className="aspect-square w-full shrink-0" showSource />
-                        <div className="flex flex-1 flex-col p-5">
-                          <p className="text-xs font-medium uppercase tracking-wider text-blue-200/55">{(product.category || 'Product').replaceAll('-', ' ')}</p>
-                          <h4 className="mt-2 min-h-[5.25rem] line-clamp-3 text-lg font-semibold leading-7">{product.title}</h4>
+                    <article key={product.id || product.product_url} className={`anim-scale-in d-${(index % 3) + 1} group flex flex-col overflow-hidden rounded-2xl border border-blue-100/10 bg-[#0b1d35]/70 text-left shadow-lg shadow-black/10 transition duration-300 hover:-translate-y-1 hover:border-blue-200/30 hover:bg-[#102746] hover:shadow-xl hover:shadow-black/20`}>
+                      <button type="button" onClick={() => setSelectedProduct(product)} aria-label={`View details for ${product.title}`} className="flex flex-1 items-start gap-3 p-4 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-blue-300">
+                        <ProductArtwork product={product} className="h-24 w-24 shrink-0 rounded-xl" />
+                        <div className="flex min-w-0 flex-1 flex-col">
+                          <div className="flex flex-wrap items-center gap-1.5 text-xs text-blue-200/70">
+                            <span className="rounded-full bg-blue-400/10 px-2 py-0.5 font-semibold">{product.source || 'Catalog'}</span>
+                            <span>{(product.category || 'Product').replaceAll('-', ' ')}</span>
+                          </div>
+                          <h4 className="mt-1 line-clamp-2 text-sm font-semibold leading-5">{product.title}</h4>
                           {product.scraped_at && <p className="mt-2 text-xs text-blue-100/50">Observed: {new Date(product.scraped_at).toLocaleString()}</p>}
-                          <p className="mt-2 line-clamp-3 text-sm leading-6 text-blue-100/60">{getProductDescription(product)}</p>
-                          <p className="mt-3 line-clamp-2 text-xs leading-5 text-blue-200/70"><span className="font-semibold text-blue-100">Why this match:</span> {product.match_reason}</p>
-                          <div className="mt-auto flex items-baseline gap-2 pt-4">
-                            <span className="anim-count-up text-2xl font-semibold">{formatPrice(product.price, product.currency)}</span>
+                          <p className="mt-2 line-clamp-2 text-xs leading-5 text-blue-100/60">{getProductDescription(product)}</p>
+                          <p className="mt-2 line-clamp-2 text-xs leading-5 text-blue-200/70"><span className="font-semibold text-blue-100">Why this match:</span> {product.match_reason}</p>
+                          <div className="mt-auto flex items-baseline gap-2 pt-2">
+                            <span className="anim-count-up text-xl font-semibold">{formatPrice(product.price, product.currency)}</span>
                           </div>
                         </div>
                       </button>
-                      <div className="px-5 pb-7 pt-2">
-                        <a href={product.product_url} target="_blank" rel="noreferrer" className="block w-full rounded-xl border border-blue-200/15 bg-blue-400/10 px-4 py-3 text-center text-sm font-semibold text-blue-100 transition hover:bg-blue-400/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300">
+                      <div className="px-4 pb-4">
+                        <a href={product.product_url} target="_blank" rel="noreferrer" className="block w-full rounded-xl border border-blue-200/15 bg-blue-400/10 px-3 py-2 text-center text-xs font-semibold text-blue-100 transition hover:bg-blue-400/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300">
                           View at {product.source || retailer.name} ↗
                         </a>
                       </div>
@@ -221,10 +224,11 @@ function SearchResults({ search, onBack, onRefined }) {
       {selectedProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#030b16]/75 p-5 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedProduct(null) }}>
           <div className="max-h-[calc(100vh-2.5rem)] w-full max-w-md overflow-y-auto overscroll-contain rounded-3xl border border-blue-100/15 bg-[#102746] p-7 shadow-2xl shadow-black/40" role="dialog" aria-modal="true" aria-labelledby="search-product-dialog-title">
-            <ProductArtwork key={selectedProduct.id || selectedProduct.product_url} product={selectedProduct} className="mb-6 aspect-square w-full rounded-2xl" />
+            <ProductArtwork key={selectedProduct.id || selectedProduct.product_url} product={selectedProduct} className="mb-4 h-48 w-full rounded-2xl" />
             <p className="text-xs font-semibold uppercase tracking-wider text-blue-200/60">{(selectedProduct.category || 'Product').replaceAll('-', ' ')} · {selectedProduct.source || 'Catalog'}</p>
-            <h3 id="search-product-dialog-title" className="mt-2 text-2xl font-semibold">{selectedProduct.title}</h3>
-            <p className="mt-3 leading-7 text-blue-100/70">{getProductDescription(selectedProduct)}</p>
+            <h3 id="search-product-dialog-title" className="mt-2 break-words text-2xl font-semibold">{selectedProduct.title}</h3>
+            <p className="mt-3 break-words leading-7 text-blue-100/70">{getProductDescription(selectedProduct)}</p>
+            {selectedProduct.scraped_at && <p className="mt-2 text-xs text-blue-100/50">Observed: {new Date(selectedProduct.scraped_at).toLocaleString()}</p>}
             <div className="mt-4 rounded-xl border border-blue-100/10 bg-[#071326]/40 p-4">
               <p className="text-xs font-semibold uppercase tracking-wider text-blue-200/60">Why this result</p>
               <p className="mt-2 text-sm leading-6 text-blue-100/75">{selectedProduct.match_reason}</p>

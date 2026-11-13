@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { getProductDescription } from './productDescription'
+import { isTechProduct } from './productEligibility'
 
 const collections = [
   {
@@ -36,11 +37,11 @@ function formatPrice(price, currency = 'USD') {
   return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(amount)
 }
 
-function ProductArtwork({ product, badge, className = 'h-64 shrink-0' }) {
+function ProductArtwork({ product, badge, className = 'h-24 w-24 shrink-0 rounded-xl' }) {
   const [imageFailed, setImageFailed] = useState(false)
 
   return (
-    <div className={`relative grid w-full place-items-center overflow-hidden bg-white ${className}`}>
+    <div className={`relative grid place-items-center overflow-hidden bg-white ${className}`}>
       {product.image_url && !imageFailed ? (
         <img
           src={product.image_url}
@@ -67,18 +68,18 @@ async function requestRetailerProducts(endpoint, query, signal) {
   })
   const data = await response.json()
   if (!response.ok) throw new Error(data.error || 'Could not load retailer products.')
-  return data.products || []
+  return (data.products || []).filter(isTechProduct)
 }
 
-function RetailerPicks({ retailer, endpoint, initialProducts, homepageLoading }) {
+function RetailerPicks({ retailer, endpoint, initialProducts, homepageLoading, onPreview }) {
   const retailerId = retailer.toLowerCase().replaceAll(' ', '-')
   const [query, setQuery] = useState('laptop')
-  const [products, setProducts] = useState(initialProducts)
+  const [products, setProducts] = useState(initialProducts.filter(isTechProduct))
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    setProducts(initialProducts)
+    setProducts(initialProducts.filter(isTechProduct))
   }, [initialProducts])
 
   async function handleSearch(event) {
@@ -137,16 +138,23 @@ function RetailerPicks({ retailer, endpoint, initialProducts, homepageLoading })
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {products.map((product) => (
             <article key={product.product_url} className="flex flex-col overflow-hidden rounded-2xl border border-blue-100/10 bg-[#0b1d35]/70 shadow-lg shadow-black/10">
-              <ProductArtwork product={product} badge={retailer} className="aspect-square shrink-0" />
-              <div className="flex flex-1 flex-col p-5">
-                <p className="text-xs font-medium uppercase tracking-wider text-blue-200/55">{(product.category || 'Product').replaceAll('-', ' ')}</p>
-                <h4 className="mt-2 line-clamp-3 text-lg font-semibold">{product.title}</h4>
-                <p className="mt-2 line-clamp-3 text-sm leading-6 text-blue-100/60">{getProductDescription(product)}</p>
-                <p className="mt-auto flex flex-wrap items-baseline gap-2 pt-4">
-                  <span className="text-2xl font-semibold">{formatPrice(product.price, product.currency)}</span>
-                  {product.regular_price && <span className="text-sm text-blue-100/45 line-through">{formatPrice(product.regular_price, product.currency)}</span>}
-                </p>
-                <a href={product.product_url} target="_blank" rel="noreferrer" className="mt-4 block w-full rounded-xl border border-blue-200/15 bg-blue-400/10 px-4 py-2.5 text-center text-sm font-semibold text-blue-100 transition hover:bg-blue-400/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300">
+              <button type="button" onClick={() => onPreview(product)} aria-label={`Preview ${product.title}`} className="flex flex-1 items-start gap-3 p-4 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-blue-300">
+                <ProductArtwork product={product} />
+                <div className="flex min-w-0 flex-1 flex-col">
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs text-blue-200/70">
+                    <span className="rounded-full bg-blue-400/10 px-2 py-0.5 font-semibold">{product.source || retailer}</span>
+                    <span>{(product.category || 'Product').replaceAll('-', ' ')}</span>
+                  </div>
+                  <h4 className="mt-1 line-clamp-2 text-sm font-semibold leading-5">{product.title}</h4>
+                  <p className="mt-2 line-clamp-2 text-xs leading-5 text-blue-100/60">{getProductDescription(product)}</p>
+                  <p className="mt-auto flex flex-wrap items-baseline gap-2 pt-2">
+                    <span className="text-xl font-semibold">{formatPrice(product.price, product.currency)}</span>
+                    {product.regular_price && <span className="text-sm text-blue-100/45 line-through">{formatPrice(product.regular_price, product.currency)}</span>}
+                  </p>
+                </div>
+              </button>
+              <div className="px-4 pb-4">
+                <a href={product.product_url} target="_blank" rel="noreferrer" className="block w-full rounded-xl border border-blue-200/15 bg-blue-400/10 px-3 py-2 text-center text-xs font-semibold text-blue-100 transition hover:bg-blue-400/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300">
                   View at {retailer} ↗
                 </a>
               </div>
@@ -181,7 +189,7 @@ function DealsSection() {
         const data = await response.json()
         if (!response.ok) throw new Error(data.error || 'Could not load products from the catalog.')
         const collectionsById = Object.fromEntries(
-          (data.collections || []).map((collection) => [collection.id, collection.products || []]),
+          (data.collections || []).map((collection) => [collection.id, (collection.products || []).filter(isTechProduct)]),
         )
         setProductsByCollection(collectionsById)
         setDiscoveryErrors(data.discovery_errors || [])
@@ -218,8 +226,8 @@ function DealsSection() {
         </div>
 
         <div className="space-y-14">
-          <RetailerPicks retailer="Best Buy" endpoint="/api/bestbuy-search" initialProducts={productsByCollection['bestbuy-picks'] || EMPTY_PRODUCTS} homepageLoading={isLoading} />
-          <RetailerPicks retailer="Walmart" endpoint="/api/walmart-search" initialProducts={productsByCollection['walmart-picks'] || EMPTY_PRODUCTS} homepageLoading={isLoading} />
+          <RetailerPicks retailer="Best Buy" endpoint="/api/bestbuy-search" initialProducts={productsByCollection['bestbuy-picks'] || EMPTY_PRODUCTS} homepageLoading={isLoading} onPreview={setSelectedProduct} />
+          <RetailerPicks retailer="Walmart" endpoint="/api/walmart-search" initialProducts={productsByCollection['walmart-picks'] || EMPTY_PRODUCTS} homepageLoading={isLoading} onPreview={setSelectedProduct} />
           {error && (
             <div className="rounded-2xl border border-rose-200/20 bg-rose-950/20 px-5 py-5 text-center text-sm text-rose-100" role="alert">
               <p>{error}</p>
@@ -261,33 +269,26 @@ function DealsSection() {
                     {products.map((product, index) => (
                       <article
                         key={product.id || product.product_url}
-                        className={`anim-scale-in d-${(index % 3) + 1} group flex min-h-[25rem] basis-[85%] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border border-blue-100/10 bg-[#0b1d35]/70 text-left shadow-lg shadow-black/10 transition duration-300 hover:-translate-y-1 hover:border-blue-200/30 hover:bg-[#102746] hover:shadow-xl hover:shadow-black/20 sm:basis-[calc((100%_-_1rem)/2)] lg:basis-[calc((100%_-_2rem)/3)]`}
+                        className={`anim-scale-in d-${(index % 3) + 1} group flex basis-full shrink-0 snap-start flex-col overflow-hidden rounded-2xl border border-blue-100/10 bg-[#0b1d35]/70 text-left shadow-lg shadow-black/10 transition duration-300 hover:-translate-y-1 hover:border-blue-200/30 hover:bg-[#102746] hover:shadow-xl hover:shadow-black/20 sm:basis-[calc((100%_-_1rem)/2)] lg:basis-[calc((100%_-_2rem)/3)]`}
                       >
                         <button
                           type="button"
                           onClick={() => setSelectedProduct(product)}
-                          className="flex flex-1 flex-col text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-blue-300"
+                          className="flex flex-1 items-start gap-3 p-4 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-blue-300"
                           aria-label={`Preview ${product.title}`}
                         >
-                          <ProductArtwork
-                            product={product}
-                            badge={collection.id === 'all-time-lows'
-                              ? 'Lowest current price'
-                              : collection.id === 'bestbuy-picks'
-                                ? 'Best Buy'
-                                : collection.id === 'walmart-picks'
-                                  ? 'Walmart'
-                                  : collection.id === 'deep-discounts'
-                                    ? 'On sale'
-                                    : 'Recently observed'}
-                          />
-                          <div className="flex flex-1 flex-col p-5">
-                            <p className="text-xs font-medium uppercase tracking-wider text-blue-200/55">{(product.category || 'Product').replaceAll('-', ' ')}</p>
-                            <h4 className="mt-2 line-clamp-3 text-lg font-semibold">{product.title}</h4>
-                            <p className="mt-2 line-clamp-3 text-sm leading-6 text-blue-100/60">{getProductDescription(product)}</p>
+                          <ProductArtwork product={product} />
+                          <div className="flex min-w-0 flex-1 flex-col">
+                            <div className="flex flex-wrap items-center gap-1.5 text-xs text-blue-200/70">
+                              <span className="rounded-full bg-blue-400/10 px-2 py-0.5 font-semibold">{product.source || 'Catalog'}</span>
+                              <span>{(product.category || 'Product').replaceAll('-', ' ')}</span>
+                            </div>
+                            <p className="mt-1 text-xs text-blue-200/60">{collection.title}</p>
+                            <h4 className="mt-1 line-clamp-2 text-sm font-semibold leading-5">{product.title}</h4>
+                            <p className="mt-2 line-clamp-2 text-xs leading-5 text-blue-100/60">{getProductDescription(product)}</p>
                             {product.scraped_at && <p className="mt-2 text-xs text-blue-100/50">Observed: {new Date(product.scraped_at).toLocaleDateString()}</p>}
-                            <div className="mt-auto flex items-baseline gap-2 pt-4">
-                              <span className="anim-count-up text-2xl font-semibold">{formatPrice(product.price, product.currency)}</span>
+                            <div className="mt-auto flex flex-wrap items-baseline gap-2 pt-2">
+                              <span className="anim-count-up text-xl font-semibold">{formatPrice(product.price, product.currency)}</span>
                               {product.regular_price && (
                                 <>
                                   <span className="text-sm text-blue-100/45 line-through">{formatPrice(product.regular_price, product.currency)}</span>
@@ -297,8 +298,8 @@ function DealsSection() {
                             </div>
                           </div>
                         </button>
-                        <div className="px-5 pb-5">
-                          <a href={product.product_url} target="_blank" rel="noreferrer" className="block w-full rounded-xl border border-blue-200/15 bg-blue-400/10 px-4 py-2.5 text-center text-sm font-semibold text-blue-100 transition hover:bg-blue-400/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300">
+                        <div className="px-4 pb-4">
+                          <a href={product.product_url} target="_blank" rel="noreferrer" className="block w-full rounded-xl border border-blue-200/15 bg-blue-400/10 px-3 py-2 text-center text-xs font-semibold text-blue-100 transition hover:bg-blue-400/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300">
                             View at {product.source || 'retailer'} ↗
                           </a>
                         </div>
@@ -315,11 +316,14 @@ function DealsSection() {
 
       {selectedProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#030b16]/75 p-5 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedProduct(null) }}>
-          <div className="w-full max-w-md rounded-3xl border border-blue-100/15 bg-[#102746] p-7 shadow-2xl shadow-black/40" role="dialog" aria-modal="true" aria-labelledby="product-dialog-title">
-            <ProductArtwork product={selectedProduct} className="mb-6 aspect-square rounded-2xl" />
+          <div className="max-h-[calc(100vh-2.5rem)] w-full max-w-md overflow-y-auto overscroll-contain rounded-3xl border border-blue-100/15 bg-[#102746] p-7 shadow-2xl shadow-black/40" role="dialog" aria-modal="true" aria-labelledby="product-dialog-title">
+            <ProductArtwork product={selectedProduct} className="mb-4 h-48 w-full rounded-2xl" />
             <p className="mt-5 text-xs font-semibold uppercase tracking-wider text-blue-200/60">{selectedProduct.category} · {selectedProduct.source}</p>
-            <h3 id="product-dialog-title" className="mt-2 text-2xl font-semibold">{selectedProduct.title}</h3>
-            <p className="mt-3 leading-7 text-blue-100/70">{getProductDescription(selectedProduct)}</p>
+            <h3 id="product-dialog-title" className="mt-2 break-words text-2xl font-semibold">{selectedProduct.title}</h3>
+            <p className="mt-3 break-words leading-7 text-blue-100/70">{getProductDescription(selectedProduct)}</p>
+            {selectedProduct.scraped_at && <p className="mt-2 text-xs text-blue-100/50">Observed: {new Date(selectedProduct.scraped_at).toLocaleString()}</p>}
+            {selectedProduct.match_reason && <p className="mt-2 text-sm text-blue-200/70">Why this match: {selectedProduct.match_reason}</p>}
+            {selectedProduct.savings_percent > 0 && <p className="mt-2 text-sm text-emerald-300">{selectedProduct.savings_percent}% off</p>}
             <div className="mt-6 flex items-center justify-between border-t border-blue-100/10 pt-5">
               <span className="text-2xl font-semibold">
                 {formatPrice(selectedProduct.price, selectedProduct.currency)}

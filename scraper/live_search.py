@@ -5,6 +5,7 @@ attempts discovery; a lock prevents simultaneous browser/network fan-out.
 """
 
 import logging
+import re
 import threading
 import time
 from datetime import datetime, timezone
@@ -36,6 +37,25 @@ from scraper import tech_scraper
 logger = logging.getLogger(__name__)
 _collection_lock = threading.Lock()
 COLLECTION_SECONDS = 55
+NON_TECH_CATEGORIES = {
+    "toys-games", "kitchen-dining", "home-garden", "clothing", "office-supplies",
+    "toys", "apparel", "furniture", "groceries", "beauty", "sports-outdoors",
+    "toys-and-games", "kitchen", "kitchenware", "home-decor", "home-goods",
+}
+OBVIOUS_NON_TECH = re.compile(
+    r"\blego\b.*\b(?:building|bricks?|sets?)\b|"
+    r"\bbarbie\s+(?:dreamhouse|dolls?)\b|"
+    r"\bkitchenaid\b.*\bmixers?\b", re.I,
+)
+
+
+def is_tech_product(product):
+    """Reject clear non-tech evidence; retain unknown and recognized tech items."""
+    category = str(product.get("category") or "").strip().lower().replace("_", "-")
+    title = str(product.get("title") or "")
+    # LEGO/Barbie video games remain eligible; these rules target physical goods.
+    obvious_non_tech = OBVIOUS_NON_TECH.search(title) and not re.search(r"\bvideo\s+games?\b", title, re.I)
+    return not obvious_non_tech and category not in NON_TECH_CATEGORIES and infer_category(title) not in NON_TECH_CATEGORIES
 
 
 class CollectedProduct(BaseModel):
@@ -237,6 +257,7 @@ def collect_live_products(
     query,
     database,
     limit=MAX_PRODUCTS,
+    match_record=None,
 ):
     """Discover, validate, and save Best Buy and Walmart products."""
 
@@ -250,7 +271,7 @@ def collect_live_products(
         "failed_saves": 0,
         "errors": [],
         "failure_code": None,
-        "result_source": "catalog",
+        "result_source": "live",
         "message": "",
         "recovered": 0,
     }
@@ -262,7 +283,7 @@ def collect_live_products(
             status="busy",
             message=(
                 "Live retailer collection is busy. "
-                "Showing stored catalog matches; "
+                "No live results are available; "
                 "try again shortly."
             ),
         )
@@ -389,7 +410,7 @@ def collect_live_products(
                 message=(
                     "Best Buy and Walmart returned "
                     "no usable product links. "
-                    "Showing stored catalog matches."
+                    "No live results are available."
                 ),
             )
 
@@ -524,6 +545,8 @@ def collect_live_products(
                 #
                 # Correct category from product title.
                 #
+                if not is_tech_product(raw):
+                    continue
                 raw["category"] = (
                     infer_category(
                         raw.get("title")
@@ -541,9 +564,10 @@ def collect_live_products(
                     )
                 )
 
-                products.append(record)
-
                 report["collected"] += 1
+
+                if not is_tech_product(record) or (match_record is not None and not match_record(record)):
+                    continue
 
                 if recovered:
                     report["recovered"] += 1
@@ -686,6 +710,7 @@ def collect_live_products(
                 )
 
                 report["saved"] += 1
+                products.append(record)
 
             except Exception:
                 logger.warning(
@@ -707,7 +732,7 @@ def collect_live_products(
         #
         # FINAL REPORT
         #
-        if products:
+        if report["collected"]:
             partial = (
                 report["failed"]
                 or report["failed_saves"]
@@ -738,8 +763,8 @@ def collect_live_products(
             )
 
             report["message"] = (
-                f"Checked {report['collected']} "
-                "live listing(s): "
+                f"Validated {report['collected']} "
+                f"live listing(s); {len(products)} eligible saved listing(s): "
                 f"{bestbuy_count} Best Buy and "
                 f"{walmart_count} Walmart; "
                 f"{report['saved']} database "
@@ -766,8 +791,7 @@ def collect_live_products(
             report["message"] = (
                 "No Best Buy or Walmart pages "
                 "could be validated. "
-                "Showing stored catalog matches; "
-                "prices were not refreshed."
+                "No live results are available."
             )
 
         return products, report
