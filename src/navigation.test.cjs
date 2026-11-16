@@ -17,8 +17,8 @@ function harness(file, globals = {}, testExports = '') {
     createElement: (type, props, ...children) => ({ type, props: { ...props, children } }),
     useState(initial) {
       const index = cursor++
-      if (!(index in states)) states[index] = initial
-      return [states[index], value => { states[index] = value }]
+      if (!(index in states)) states[index] = typeof initial === 'function' ? initial() : initial
+      return [states[index], value => { states[index] = typeof value === 'function' ? value(states[index]) : value }]
     },
     useEffect: effect => { effects.push(effect) },
     useRef: initial => react.useState({ current: initial })[0],
@@ -30,15 +30,18 @@ function harness(file, globals = {}, testExports = '') {
   vm.runInNewContext(code, {
     module, exports: module.exports, React: react,
     require: name => name === 'react' ? react
-      : name.includes('useSmoothWheelScroll') ? { __esModule: true, default: () => {} }
       : name.includes('productDescription') ? { getProductDescription: product => product.description || '' }
       : name.includes('productEligibility') ? eligibilityModule.exports
+      : name === './ProductCard.jsx' ? {
+        __esModule: true, default: name, Price: 'Price', ProductArtwork: 'ProductArtwork',
+        RetailerLabel: 'RetailerLabel', retailerName: product => product.source,
+      }
       : { __esModule: true, default: name },
     ...globals,
   })
   return {
     render(props) { cursor = 0; effects = []; return module.exports.default(props) },
-    retailer(props) { cursor = 0; effects = []; return module.exports.RetailerPicks(props) },
+    renderExport(name, props) { cursor = 0; effects = []; return module.exports[name](props) },
     flush() { for (const effect of effects) effect() },
   }
 }
@@ -53,28 +56,111 @@ function find(tree, predicate) {
   return find(tree.props?.children, predicate)
 }
 
-test('App updates refined results and restores Home or New search after rendering', () => {
-  for (const [callback, destination] of [['onHome', 'home'], ['onBack', 'search']]) {
-    const scrolls = [], hashes = []
-    const app = harness('App.jsx', {
-      window: { cancelSmoothScroll() {}, history: { replaceState: (_, __, hash) => hashes.push(hash) } },
-      document: { getElementById: id => ({ scrollIntoView: () => scrolls.push(id) }) },
-    })
-    let tree = app.render()
-    find(tree, n => n.type === './SearchSection.jsx').props.onResults({ query: 'MacBook Air', products: [] })
-    tree = app.render()
-    const refined = { query: 'MacBook Air; under $1200', products: [] }
-    find(tree, n => n.type === './SearchResults.jsx').props.onRefined(refined)
-    tree = app.render()
-    assert.equal(find(tree, n => n.type === './SearchResults.jsx').props.search, refined)
-    find(tree, n => n.type === './Navbar.jsx').props[callback]()
-    tree = app.render()
-    assert.ok(find(tree, n => n.type === './SearchSection.jsx'))
-    assert.equal(find(tree, n => n.type === './SearchResults.jsx'), undefined)
-    app.flush()
-    assert.equal(scrolls.at(-1), destination)
-    assert.equal(hashes.at(-1), `#${destination}`)
+function browserSession(start = '/') {
+  const entries = [{ path: start, state: null }], storage = new Map()
+  let index = 0
+  let backOrForward
+  const location = { pathname: start }
+  return {
+    document: {},
+    window: {
+      location, scrollTo() {},
+      history: {
+        get state() { return entries[index].state },
+        pushState(state, _, path) {
+          entries.splice(++index, entries.length, { path, state })
+          location.pathname = path
+        },
+        replaceState(state, _, path) {
+          entries[index] = { path, state }
+          location.pathname = path
+        },
+        go(step) {
+          index += step
+          location.pathname = entries[index].path
+          backOrForward()
+        },
+      },
+      sessionStorage: { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) },
+      addEventListener(type, handler) { if (type === 'popstate') backOrForward = handler },
+    },
   }
+}
+
+test('Home shows results without navigation and retains refinements across Discover and refresh', () => {
+  const globals = browserSession()
+  const { history, location } = globals.window
+  const app = harness('App.jsx', globals)
+  const component = (tree, name) => find(tree, n => n.type === `./${name}.jsx`)
+  let tree = app.render()
+  app.flush()
+  find(tree, n => typeof n.type === 'function' && n.type.name === 'Home').props.onResults({ query: 'MacBook Air', products: [] })
+  assert.equal(location.pathname, '/')
+  tree = app.render()
+  assert.equal(component(tree, 'SearchResults').props.isActive, true)
+  const refined = { query: 'MacBook Air; under $1200', products: [] }
+  component(tree, 'SearchResults').props.onRefined(refined)
+  tree = app.render()
+  assert.equal(component(tree, 'SearchResults').props.search, refined)
+  component(tree, 'Navbar').props.navigate('/discover')
+  tree = app.render()
+  assert.equal(component(tree, 'DealsSection').props.isActive, true)
+  assert.equal(component(tree, 'SearchResults').props.isActive, false)
+  history.go(-1)
+  tree = app.render()
+  assert.equal(component(tree, 'SearchResults').props.search, refined)
+  assert.equal(component(tree, 'DealsSection').props.isActive, false)
+  history.go(1)
+  tree = app.render()
+  const refreshed = component(harness('App.jsx', globals).render(), 'SearchResults').props
+  assert.equal(refreshed.search.query, refined.query)
+  assert.equal(location.pathname, '/discover')
+  const discover = component(app.render(), 'DealsSection').props.footer.props
+  discover.navigate(discover.to)
+  assert.equal(location.pathname, '/')
+  assert.equal(component(app.render(), 'SearchResults').props.search, refined)
+})
+
+test('legacy Listings replaces the URL and keeps any saved search on Home', () => {
+  for (const saved of [null, { query: 'Laptop', products: [] }]) {
+    const globals = browserSession('/listings')
+    if (saved) globals.window.sessionStorage.setItem('shoppie.search', JSON.stringify(saved))
+    const app = harness('App.jsx', globals)
+    const tree = app.render()
+    app.flush()
+    assert.equal(globals.window.location.pathname, '/')
+    assert.ok(find(tree, n => typeof n.type === 'function' && n.type.name === 'Home').props.isActive)
+    assert.equal(find(tree, n => n.type === './SearchResults.jsx')?.props.search.query, saved?.query)
+  }
+})
+
+test('back links use explicit in-app destinations and normal anchor hrefs', () => {
+  const links = harness('PageBackLink.jsx')
+  const event = { button: 0 }
+  for (const [to, label] of [['/', 'Home']]) {
+    const tree = links.render({ to, navigate: (href, click) => {
+      assert.equal(href, to)
+      assert.equal(click, event)
+    } })
+    const link = find(tree, n => n.type === 'a')
+    assert.equal(tree.type, 'footer')
+    assert.equal(link.props.href, to)
+    assert.match(link.props.children.slice(1).join(''), new RegExp(`Back to ${label}`))
+    link.props.onClick(event)
+  }
+})
+
+test('a late refinement cannot replace a newer Home search', () => {
+  const globals = browserSession()
+  const app = harness('App.jsx', globals)
+  const home = tree => find(tree, n => typeof n.type === 'function' && n.type.name === 'Home')
+  const results = tree => find(tree, n => n.type === './SearchResults.jsx')
+  home(app.render()).props.onResults({ query: 'MacBook', products: [] })
+  const first = results(app.render()).props
+  first.onNewSearch()
+  home(app.render()).props.onResults({ query: 'Sony headphones', products: [] })
+  first.onRefined({ query: 'MacBook; under $1200', products: [] })
+  assert.equal(results(app.render()).props.search.query, 'Sony headphones')
 })
 
 test('sequential refinements retain original intent and replace previous result arrays', async () => {
@@ -99,18 +185,23 @@ test('sequential refinements retain original intent and replace previous result 
   assert.equal(search.products[0].price, 799)
 })
 
-test('homepage filters stale collections and retailer responses and preserves full product data', async () => {
+test('Discover preserves every collection, retailer searches and full product details', async () => {
   const good = { title: 'Unknown ZX100', category: 'other', price: '99', currency: 'USD',
     description: 'Full description '.repeat(30), product_url: 'https://www.bestbuy.com/product/test/TEST',
     image_url: 'https://example.com/image.png', source: 'bestbuy.com', scraped_at: '2026-11-13T12:00:00Z',
-    regular_price: '120', savings_percent: 17.5 }
+    regular_price: '120', savings_percent: 17.5, match_reason: 'Exact model match' }
   const mug = { ...good, title: 'Ceramic Mug', category: 'electronics' }
+  const requests = []
   const globals = {
     AbortController,
-    fetch: async () => ({ ok: true, headers: { get: () => 'application/json' }, json: async () => ({
-      collections: ['all-time-lows', 'bestbuy-picks'].map(id => ({ id, products: [mug, good] })),
-      products: [mug, good],
-    }) }),
+    fetch: async (endpoint, options) => {
+      requests.push([endpoint, options.method, options.body && JSON.parse(options.body).query])
+      return { ok: true, headers: { get: () => 'application/json' }, json: async () => ({
+        collections: ['all-time-lows', 'bestbuy-picks'].map(id => ({ id, products: [mug, good] })),
+        products: [mug, good],
+        discounts: [good],
+      }) }
+    },
   }
   const deals = harness('DealsSection.jsx', globals)
   deals.render()
@@ -121,21 +212,66 @@ test('homepage filters stale collections and retailer responses and preserves fu
   assert.equal(picks.props.initialProducts.length, 1)
   assert.equal(picks.props.initialProducts[0], good)
   assert.ok(!JSON.stringify(tree).includes('Ceramic Mug'))
-  find(tree, n => n.type === 'button' && n.props['aria-label'] === `Preview ${good.title}`).props.onClick()
+  const tabs = find(tree, n => n.type === './CollectionPicker.jsx').props
+  assert.equal(Array.from(tabs.items, item => item.id).join(','), 'all,bestbuy-picks,walmart-picks,all-time-lows,deep-discounts,new-releases')
+  assert.equal(tabs.items[0].label, 'No Filters')
+  assert.equal(tabs.selected, 'all')
+  assert.equal(tabs.items.find(item => item.id === 'deep-discounts').label, 'High Discounts')
+  const collections = tabs.items.slice(1)
+  for (const selected of [tabs.items[0], ...collections, tabs.items[0]]) {
+    tabs.onSelect(selected.id)
+    const selectedTree = deals.render()
+    for (const item of collections) {
+      const panel = find(selectedTree, n => n.props?.id === `discover-panel-${item.id}`)
+      assert.equal(panel.props.hidden, selected.id !== 'all' && selected.id !== item.id)
+    }
+  }
+  assert.deepEqual(requests, [['/api/deals', undefined, undefined]])
+  tabs.onSelect('all-time-lows')
   tree = deals.render()
-  const dialog = find(tree, n => n.props?.role === 'dialog')
+  const rail = find(tree, n => typeof n.type === 'function' && n.type.name === 'ProductRail')
+  assert.equal(rail.props.products[0], good)
+  rail.props.onPreview(good)
+  tree = deals.render()
+  const details = find(tree, n => n.type === './ProductDetails.jsx')
+  assert.equal(details.props.product, good)
+  const dialog = harness('ProductDetails.jsx').render(details.props)
   assert.ok(JSON.stringify(dialog).includes(good.description))
   assert.ok(JSON.stringify(dialog).includes(good.product_url))
+  assert.ok(JSON.stringify(dialog).includes(good.match_reason))
+  assert.ok(JSON.stringify(dialog).includes(good.scraped_at))
+  const price = harness('ProductCard.jsx').renderExport('Price', { product: good })
+  assert.match(JSON.stringify(price), /\$99\.00.*\$120\.00.*17\.5/)
 
   // Exercise the real retailer form without exporting a production-only test API.
-  const retailer = harness('DealsSection.jsx', globals, '\nexport { RetailerPicks };')
-  const props = { retailer: 'Best Buy', endpoint: '/api/bestbuy-search', initialProducts: [mug, good], homepageLoading: false, onPreview() {} }
-  tree = retailer.retailer(props)
-  assert.ok(!JSON.stringify(tree).includes('Ceramic Mug'))
-  await find(tree, n => n.type === 'form').props.onSubmit({ preventDefault() {} })
-  tree = retailer.retailer(props)
-  assert.ok(!JSON.stringify(tree).includes('Ceramic Mug'))
-  assert.ok(JSON.stringify(tree).includes(good.title))
+  for (const { retailer, endpoint } of tabs.items.filter(item => item.retailer)) {
+    const component = harness('DealsSection.jsx', globals, '\nexport { RetailerPicks };')
+    const props = { retailer, endpoint, initialProducts: [mug, good], homepageLoading: false, onPreview() {},
+      onDiscounts: picks.props.onDiscounts }
+    tree = component.renderExport('RetailerPicks', props)
+    assert.ok(!JSON.stringify(tree).includes('Ceramic Mug'))
+    const input = find(tree, n => n.type === 'input')
+    assert.equal(input.props.value, '')
+    assert.equal(input.props.placeholder, `Search ${retailer} products...`)
+    const beforeSubmit = requests.length
+    await find(tree, n => n.type === 'form').props.onSubmit({ preventDefault() {} })
+    assert.equal(requests.length, beforeSubmit)
+    input.props.onChange({ target: { value: '  ZX100  ' } })
+    tree = component.renderExport('RetailerPicks', props)
+    assert.equal(requests.length, beforeSubmit)
+    await find(tree, n => n.type === 'form').props.onSubmit({ preventDefault() {} })
+    tree = component.renderExport('RetailerPicks', props)
+    assert.ok(!JSON.stringify(tree).includes('Ceramic Mug'))
+    assert.ok(JSON.stringify(tree).includes(good.title))
+  }
+  assert.deepEqual(requests, [
+    ['/api/deals', undefined, undefined], ['/api/bestbuy-search', 'POST', 'ZX100'], ['/api/walmart-search', 'POST', 'ZX100'],
+  ])
+  tabs.onSelect('deep-discounts')
+  tree = deals.render()
+  const discountRail = find(tree, n => n.props?.title === 'High Discounts')
+  assert.equal(discountRail.props.products.length, 1)
+  assert.equal(discountRail.props.products[0], good)
 })
 
 test('header uses the supplied proportional dark logo and favicon is configured', () => {
@@ -143,23 +279,99 @@ test('header uses the supplied proportional dark logo and favicon is configured'
   const tree = navbar.render({ onHome() {} })
   const logo = find(tree, n => n.type === 'img')
   assert.equal(logo.props.src, '/branding/shoppie-logo-primary-dark-bg.svg')
-  assert.equal(logo.props.className, 'h-9 w-auto')
+  assert.equal(logo.props.width, '203')
+  assert.equal(logo.props.height, '56')
   assert.ok(fs.readFileSync(`${__dirname}/../index.html`, 'utf8').includes('/branding/shoppie-favicon.svg'))
 })
 
-test('logo, header Home, drawer Home and New search invoke navigation callbacks', () => {
-  let homes = 0, searches = 0, prevented = 0
-  const navbar = harness('Navbar.jsx', { window: { cancelSmoothScroll() {} } })
-  const tree = navbar.render({ isShowingResults: true, onHome: () => homes++, onBack: () => searches++ })
-  const event = { preventDefault: () => prevented++ }
-  find(tree, n => n.props?.['aria-label'] === 'Shoppie home').props.onClick(event)
-  find(tree, n => n.type === 'a' && n.props.children[0] === 'Home').props.onClick(event)
-  const drawer = find(tree, n => n.type === 'nav')
-  find(drawer, n => n.type === 'a' && n.props.children[0] === 'Home').props.onClick(event)
-  find(drawer, n => n.type === 'a' && n.props.children[0] === 'New search').props.onClick(event)
-  assert.equal(homes, 3)
-  assert.equal(searches, 1)
-  assert.equal(prevented, 4)
+test('logo and navigation expose only Home and Discover and mark the current page', () => {
+  const paths = []
+  const tree = harness('Navbar.jsx').render({ route: '/discover', navigate: path => paths.push(path) })
+  const nav = find(tree, n => n.type === 'nav')
+  for (const [label, href] of [['Home', '/'], ['Discover', '/discover']]) {
+    const { props } = find(nav, n => n.type === 'a' && n.props.children[0] === label)
+    assert.equal(props.href, href)
+    assert.equal(props['aria-current'], href === '/discover' ? 'page' : undefined)
+    props.onClick({})
+  }
+  find(tree, n => n.props?.['aria-label'] === 'Shoppie home').props.onClick({})
+  assert.equal(find(nav, n => n.props?.href === '/listings'), undefined)
+  assert.deepEqual(paths, ['/', '/discover', '/'])
+})
+
+test('Discover picker highlights the active option and closes on selection and Escape', () => {
+  const picker = harness('CollectionPicker.jsx')
+  const items = [{ id: 'first', label: 'First pick' }, { id: 'second', label: 'Second pick' }]
+  let selected = 'first'
+  const draw = () => picker.render({ items, selected, onSelect: value => { selected = value }, isActive: true })
+  const trigger = tree => find(tree, n => n.props?.['aria-controls'] === 'discover-collections')
+  let tree = draw()
+  assert.equal(trigger(tree).props['aria-expanded'], false)
+  trigger(tree).props.onClick()
+  tree = draw()
+  assert.equal(trigger(tree).props['aria-expanded'], true)
+  assert.ok(find(tree, n => n.props?.['aria-pressed'] === true))
+  tree.props.onKeyDown({ key: 'Escape', preventDefault() {} })
+  assert.equal(trigger(draw()).props['aria-expanded'], false)
+  trigger(draw()).props.onClick()
+  find(draw(), n => n.props?.['aria-pressed'] === false).props.onClick()
+  assert.equal(selected, 'second')
+  assert.equal(trigger(draw()).props['aria-expanded'], false)
+})
+
+test('results show total matches separately from visible cards in each retailer group', () => {
+  const results = harness('SearchResults.jsx')
+  const products = Array.from({ length: 25 }, (_, i) => ({ id: i + 1, source: i < 20 ? 'bestbuy.com' : 'walmart.com' }))
+  const props = { search: { query: 'laptop', products, collection: { result_source: 'hybrid', live_matches: 3, catalog_matches: 22 } } }
+  const grid = tree => find(tree, n => n.props?.className === 'listing-grid')
+  const tabs = tree => find(tree, n => n.type === './Tabs.jsx').props
+  const more = tree => find(tree, n => n.type === 'button' && n.props.children[0] === 'Load more')
+  let tree = results.render(props)
+  assert.equal(grid(tree).props.children[0].length, 12)
+  assert.equal(tabs(tree).items[0].count, 25)
+  more(tree).props.onClick()
+  tree = results.render(props)
+  assert.equal(grid(tree).props.children[0].length, 24)
+  more(tree).props.onClick()
+  tree = results.render(props)
+  assert.equal(grid(tree).props.children[0].length, 25)
+  tabs(tree).onSelect('walmart.com')
+  tree = results.render(props)
+  assert.equal(grid(tree).props.children[0].length, 5)
+  assert.equal(tabs(tree).items.find(group => group.id === 'bestbuy.com').count, 20)
+  assert.equal(products.length, 25)
+})
+
+test('Home search keeps its loading and error states and accepts a valid empty response', async () => {
+  let finish, search, requests = 0
+  const form = harness('SearchSection.jsx', { fetch: (endpoint, options) => {
+    requests += 1
+    assert.equal(endpoint, '/api/search')
+    assert.equal(options.method, 'POST')
+    assert.equal(JSON.parse(options.body).query, 'laptop')
+    return new Promise(resolve => { finish = resolve })
+  } })
+  const draw = () => form.render({ onResults: value => { search = value } })
+  const input = find(draw(), n => n.type === 'input')
+  assert.equal(input.props.value, '')
+  assert.equal(input.props.placeholder, 'Try "laptop" to find great tech deals')
+  const submit = () => find(draw(), n => n.type === 'form').props.onSubmit({ preventDefault() {} })
+  await submit()
+  assert.equal(search, undefined)
+  assert.equal(requests, 0)
+  find(draw(), n => n.type === 'input').props.onChange({ target: { value: 'laptop' } })
+  let request = submit()
+  assert.ok(find(draw(), n => n.props?.role === 'status'))
+  finish({ ok: false, json: async () => ({ error: 'Search timed out.' }) })
+  await request
+  assert.equal(find(draw(), n => n.props?.role === 'alert').props.children[0], 'Search timed out.')
+  assert.equal(search, undefined)
+  request = submit()
+  finish({ ok: true, json: async () => ({ products: [], collection: { result_source: 'catalog' } }) })
+  await request
+  assert.equal(search.query, 'laptop')
+  const empty = harness('SearchResults.jsx').render({ search })
+  assert.ok(find(empty, n => n.type === 'h2' && n.props.children[0] === 'No matching products'))
 })
 
 test('refinement sends accumulated query and applies the response through onRefined', async () => {

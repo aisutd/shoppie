@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import Icon from './Icon.jsx'
 
 function SearchSection({ onResults }) {
   const [query, setQuery] = useState('')
@@ -29,39 +30,24 @@ function SearchSection({ onResults }) {
   }
 
   return (
-    <section id="search" className="relative z-10 scroll-mt-20 px-6 py-20 text-white sm:py-28" aria-labelledby="search-heading">
-      <div className="mx-auto flex max-w-3xl flex-col items-center text-center">
-        <div className="mb-6 grid size-24 place-items-center rounded-full border-2 border-dashed border-blue-200/40 bg-blue-900/60 text-5xl shadow-[0_0_45px_rgba(96,165,250,0.15)]" role="img" aria-label="Placeholder mascot logo">
-          🙂
-        </div>
-        <h2 id="search-heading" className="text-3xl font-semibold tracking-tight sm:text-4xl">What are you looking for?</h2>
-        <p className="mt-3 max-w-lg text-base leading-7 text-blue-100/70">
-          Search for a product to start comparing prices.
+    <div className="primary-search">
+      <form className="search-form search-form-primary" role="search" onSubmit={handleSearch} aria-busy={isSearching}>
+        <Icon name="search" />
+        <label htmlFor="product-search" className="sr-only">Search products</label>
+        <input id="product-search" name="query" type="search" value={query}
+          onChange={event => setQuery(event.target.value)} required autoComplete="off"
+          placeholder='Try "laptop" to find great tech deals' />
+        <button type="submit" className="action-button" disabled={isSearching}>
+          {isSearching ? 'Searching…' : 'Search'} <Icon name="arrow" />
+        </button>
+      </form>
+      {isSearching && (
+        <p className="search-feedback" role="status">
+          Checking Best Buy and Walmart for current listings, saving products, and finding matches. This can take a minute or longer.
         </p>
-        <form className="mt-8 flex w-full flex-col gap-3 rounded-2xl border border-blue-200/15 bg-[#0b1d35]/80 p-2 shadow-xl shadow-black/20 backdrop-blur-sm sm:flex-row" role="search" onSubmit={handleSearch}>
-          <label htmlFor="product-search" className="sr-only">Search products</label>
-          <input
-            id="product-search"
-            name="query"
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            required
-            placeholder="Try “MacBook Air M5 24 GB RAM”"
-            className="min-w-0 flex-1 rounded-xl bg-transparent px-4 py-3 text-base text-white outline-none placeholder:text-blue-100/45 focus-visible:ring-2 focus-visible:ring-blue-400"
-          />
-          <button type="submit" disabled={isSearching} className="rounded-xl bg-blue-500 px-7 py-3 font-semibold text-white transition hover:bg-blue-400 disabled:cursor-wait disabled:opacity-70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300">
-            {isSearching ? 'Searching…' : 'Search'}
-          </button>
-        </form>
-        {isSearching && (
-          <p className="mt-4 text-sm text-blue-100/70" role="status" aria-live="polite">
-            Checking Best Buy and Walmart for current listings, saving products, and finding matches. This can take a minute or longer.
-          </p>
-        )}
-        {error && <p className="mt-4 text-sm text-rose-200" role="alert">{error}</p>}
-      </div>
-    </section>
+      )}
+      {error && <p className="search-feedback error-text" role="alert">{error}</p>}
+    </div>
   )
 }
 

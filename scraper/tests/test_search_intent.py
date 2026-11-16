@@ -19,6 +19,7 @@ def listing(title, category="monitors", description=""):
 @pytest.fixture(autouse=True)
 def saved_candidate_readback(monkeypatch):
     monkeypatch.setattr(api, "load_saved_candidates", lambda database, candidates: candidates)
+    monkeypatch.setattr(api, "load_catalog", lambda database: [])
 
 
 @pytest.fixture(autouse=True)
@@ -99,6 +100,7 @@ def test_catalog_fallback_keeps_original_requirements(monkeypatch):
 def test_live_candidates_keep_original_requirements(monkeypatch):
     good = listing('Acer 24-inch Monitor 160Hz')
     wrong = listing('MacBook Air 24GB 15-inch Laptop', 'laptops')
+    wrong['product_url'] = 'https://www.bestbuy.com/product/laptop/LAPTOP'
     monkeypatch.setattr(api, 'collect_live_products', lambda *a, **kw: ([wrong, good], {'saved': 2, 'errors': [], 'result_source': 'live'}))
     response = api.search_response(QUERY)
     assert [product['title'] for product in response['products']] == [good['title']]

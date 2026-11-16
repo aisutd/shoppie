@@ -18,6 +18,7 @@ import requests
 from scraper.config import ConfigurationError, load_database_config
 from scraper.live_search import CollectedProduct, collect_live_products, infer_category, is_tech_product
 from scraper.bestbuy_search import DiscoveryError, discover_bestbuy_products
+from scraper.scraper import identify_product, same_requested_product
 from scraper.walmart_search import WalmartDiscoveryError, discover_walmart_products
 from scraper.search_intent import apply_requirements, listing_type, parse_requirements, product_type
 
@@ -30,8 +31,10 @@ MODEL = "qwen2.5-coder:1.5b"
 MAX_BODY_BYTES = 8_192
 CATALOG_CACHE_SECONDS = 300
 CATALOG_PAGE_SIZE = 500
-MAX_RESULTS = 60
+MODEL_LOOKUP_LIMIT = 60
 FUZZY_TOKEN_THRESHOLD = 0.72
+# These manufacturer names in typed product searches are explicit identity evidence.
+SEARCH_BRANDS = {"acer", "apple", "asus", "bose", "dell", "hp", "lenovo", "lg", "samsung", "sony"}
 SEARCH_STOP_WORDS = {
     "a", "an", "and", "at", "best", "find", "for", "get", "give",
     "good", "in", "least", "looking", "me", "my", "need", "of", "on", "please",
@@ -130,9 +133,10 @@ def load_catalog(database):
             result.raise_for_status()
             page = result.json()
             products.extend(page)
-            if len(page) < CATALOG_PAGE_SIZE:
+            # Supabase can return a smaller page than requested.
+            if not page:
                 break
-            offset += CATALOG_PAGE_SIZE
+            offset += len(page)
 
         _catalog_cache["products"] = products
         _catalog_cache["expires_at"] = time.monotonic() + CATALOG_CACHE_SECONDS
@@ -152,11 +156,9 @@ def correct_legacy_categories(products):
     ]
 
 
-def deal_collections(products, bestbuy_products=(), walmart_products=()):
+def deal_collections(products, bestbuy_products=None, walmart_products=None):
     """Build homepage groups from the catalog and verified retailer offers."""
     products = [product for product in correct_legacy_categories(products) if is_tech_product(product)]
-    bestbuy_products = [product for product in bestbuy_products if is_tech_product(product)]
-    walmart_products = [product for product in walmart_products if is_tech_product(product)]
     priced_products = []
     for product in products:
         try:
@@ -184,12 +186,28 @@ def deal_collections(products, bestbuy_products=(), walmart_products=()):
         except ValueError:
             return float("-inf")
 
-    newest_observations = sorted(
-        products, key=observed_timestamp, reverse=True
-    )[:6]
-    live_products = [*bestbuy_products, *walmart_products]
+    newest = sorted(products, key=observed_timestamp, reverse=True)
+
+    def picks(source, offers):
+        if offers is not None:
+            return [product for product in offers if is_tech_product(product)]
+        return [product for product in newest if product.get("source") == source][:20]
+
+    bestbuy_picks = picks("bestbuy.com", bestbuy_products)
+    walmart_picks = picks("walmart.com", walmart_products)
+    return [
+        {"id": "all-time-lows", "products": lowest_prices},
+        {"id": "deep-discounts", "products": verified_discounts([*bestbuy_picks, *walmart_picks])},
+        {"id": "new-releases", "products": newest[:6]},
+        {"id": "bestbuy-picks", "products": bestbuy_picks},
+        {"id": "walmart-picks", "products": walmart_picks},
+    ]
+
+
+def verified_discounts(products):
+    """Rank listings that have explicit, valid current and regular prices."""
     discounted_products = []
-    for product in live_products:
+    for product in products:
         try:
             current_price = Decimal(str(product["price"]))
             regular_price = Decimal(str(product["regular_price"]))
@@ -215,13 +233,7 @@ def deal_collections(products, bestbuy_products=(), walmart_products=()):
             product["title"].casefold(),
         )
     )
-    return [
-        {"id": "all-time-lows", "products": lowest_prices},
-        {"id": "deep-discounts", "products": discounted_products[:12]},
-        {"id": "new-releases", "products": newest_observations},
-        {"id": "bestbuy-picks", "products": list(bestbuy_products)},
-        {"id": "walmart-picks", "products": list(walmart_products)},
-    ]
+    return discounted_products[:12]
 
 
 def discover_homepage_products():
@@ -644,8 +656,15 @@ def search_products(query, catalog=None, allow_model=True):
     if catalog is None:
         catalog = load_catalog(database)
     catalog = [product for product in catalog if is_tech_product(product)]
-    category_catalog = apply_identity_requirements(original_query, filter_by_category(text_query, catalog))
     intent = parse_requirements(original_query)
+    query_tokens = normalize_tokens(text_query)
+    if intent["product_type"] and query_tokens and query_tokens[0] in SEARCH_BRANDS:
+        # A category-only match cannot satisfy a named manufacturer.
+        brand = query_tokens[0]
+        catalog = [product for product in catalog if brand in normalize_tokens(product.get("title"))]
+    if not catalog:
+        return []
+    category_catalog = apply_identity_requirements(original_query, filter_by_category(text_query, catalog))
     if not category_catalog and (intent["product_type"] or intent["specs"] or re.search(r"\bm[1-9]\d?\b|\bmacbook\s+(?:air|pro)\b", original_query, re.I)):
         # The loaded candidates/catalog contain no evidence for the explicit
         # identity. Asking a model for synonyms cannot establish that identity.
@@ -676,11 +695,10 @@ def search_products(query, catalog=None, allow_model=True):
     ranked.sort(key=lambda item: (-item[0], float(item[1]["price"])))
     if ranked:
         if cheap_preference:
-            cheap_matches = select_cheap_products([product for _, product in ranked])
-            return cheap_matches[:MAX_RESULTS]
-        return [product for _, product in ranked[:MAX_RESULTS]]
+            return select_cheap_products([product for _, product in ranked])
+        return [product for _, product in ranked]
 
-    if (price_condition or memory_condition or cheap_preference) and not normalize_tokens(text_query):
+    if (price_condition or memory_condition or cheap_preference) and not query_tokens:
         products = [dict(product) for product in apply_identity_requirements(original_query, catalog)]
         if not memory_condition:
             for product in products:
@@ -690,7 +708,7 @@ def search_products(query, catalog=None, allow_model=True):
         if cheap_preference:
             products = select_cheap_products(products)
         products.sort(key=lambda product: float(product["price"]))
-        return products[:MAX_RESULTS]
+        return products
 
     # Keep the local model available as a slower fallback for conceptual searches
     # that have no useful token overlap with the catalog.
@@ -723,7 +741,7 @@ def search_with_model_terms(
         products = apply_price_condition(products, price_condition)
         if cheap_preference:
             products = select_cheap_products(products)
-        return products[:MAX_RESULTS]
+        return products
     filters = []
     for term in terms:
         pattern = f"*{term}*"
@@ -744,7 +762,7 @@ def search_with_model_terms(
             "select": "id,title,description,image_url,price,currency,product_url,source,category,scraped_at",
             "or": f"({','.join(filters)})",
             "order": "price.asc",
-            "limit": str(MAX_RESULTS),
+            "limit": str(MODEL_LOOKUP_LIMIT),
         },
         timeout=20,
     )
@@ -780,6 +798,38 @@ def load_saved_candidates(database, candidates):
     return [product for product in result.json() if product.get("product_url") in urls]
 
 
+def merge_search_records(fresh, stored):
+    """Prefer confirmed fresh rows and collapse only equivalent listing URLs."""
+    products = []
+    seen = {}
+    for product in [*fresh, *stored]:
+        url = product["product_url"]
+        try:
+            identity = identify_product(url)
+        except ValueError:
+            identity = (product.get("source"), url)
+            if identity in seen:
+                continue
+        else:
+            if any(same_requested_product(url, previous) for previous in seen.get(identity, [])):
+                continue
+        seen.setdefault(identity, []).append(url)
+        products.append(product)
+    return products
+
+
+def result_counts(products, fresh):
+    fresh_urls = {product["product_url"] for product in fresh}
+    live_count = sum(product["product_url"] in fresh_urls for product in products)
+    catalog_count = len(products) - live_count
+    return {
+        "matched": len(products),
+        "live_matches": live_count,
+        "catalog_matches": catalog_count,
+        "result_source": "hybrid" if live_count and catalog_count else "live" if live_count else "catalog",
+    }
+
+
 def search_response(query):
     """Collect fresh retailer candidates, save them, then apply existing ranking."""
     database = load_database_config()
@@ -805,18 +855,21 @@ def search_response(query):
         # Another search should not use the five-minute pre-collection snapshot.
         with _catalog_lock:
             _catalog_cache["expires_at"] = 0
-    candidates = load_saved_candidates(database, candidates)
-    if candidates:
-        try:
-            products = search_products(query, catalog=candidates)
-        except (requests.RequestException, ValueError):
-            # Collection may succeed even when optional Ollama expansion fails.
-            # Keep the successfully saved records, but don't show unranked items.
-            products = search_products(query, catalog=candidates, allow_model=False)
-            collection["errors"].append("Optional AI query expansion was unavailable; only direct matches are shown.")
-    else:
-        products = []
-    collection["matched"] = len(products)
+    fresh = load_saved_candidates(database, candidates)
+    try:
+        stored = load_catalog(database)
+    except requests.RequestException:
+        if not fresh:
+            raise
+        stored = []
+        collection["errors"].append("The stored catalog could not be loaded. Only verified live listings were searched.")
+    records = merge_search_records(fresh, stored)
+    try:
+        products = search_products(query, catalog=records)
+    except (requests.RequestException, ValueError):
+        products = search_products(query, catalog=records, allow_model=False)
+        collection["errors"].append("Optional AI query expansion was unavailable; only direct matches are shown.")
+    collection.update(result_counts(products, fresh))
     products = correct_legacy_categories(products)
     intent = parse_requirements(query)
     collection["requirements"] = {
@@ -833,28 +886,46 @@ def search_response(query):
     return {"products": products, "collection": collection}
 
 
+def retailer_products_response(query, source, discover):
+    """Search bounded live results and all stored matches from this retailer."""
+    live_error = None
+    try:
+        records = discover(query, limit=6)
+    except (DiscoveryError, WalmartDiscoveryError, requests.RequestException) as error:
+        records = []
+        live_error = error
+    fresh = validate_retailer_products([
+        {**record, "category": infer_category(record["title"])}
+        for record in records if record.get("source") == source and is_tech_product(record)
+    ])
+    catalog_error = False
+    try:
+        stored = [row for row in load_catalog(load_database_config()) if row.get("source") == source]
+    except (ConfigurationError, requests.RequestException):
+        if not fresh:
+            raise
+        stored = []
+        catalog_error = True
+    products = search_products(query, catalog=merge_search_records(fresh, stored), allow_model=False)
+    if live_error and not products:
+        raise live_error
+    collection = result_counts(products, fresh)
+    if live_error:
+        collection["message"] = "Live retailer discovery was unavailable. Showing matching stored listings."
+    if catalog_error:
+        collection["message"] = "The stored catalog could not be loaded. Only verified live listings were searched."
+    products = correct_legacy_categories(products)
+    live_urls = {row["product_url"] for row in fresh}
+    discounts = verified_discounts(row for row in products if row["product_url"] in live_urls)
+    return {"products": products, "collection": collection, "discounts": discounts}
+
+
 def walmart_products_response(query):
-    """Return validated Walmart search-card results for the homepage."""
-    records = discover_walmart_products(query, limit=6)
-    products = []
-    for record in records:
-        if not is_tech_product(record):
-            continue
-        record["category"] = infer_category(record["title"])
-        products.append(CollectedProduct.model_validate(record).model_dump(mode="json"))
-    return {"products": products}
+    return retailer_products_response(query, "walmart.com", discover_walmart_products)
 
 
 def bestbuy_products_response(query):
-    """Return validated Best Buy search-card results for the homepage."""
-    records = discover_bestbuy_products(query, limit=6)
-    products = []
-    for record in records:
-        if not is_tech_product(record):
-            continue
-        record["category"] = infer_category(record["title"])
-        products.append(CollectedProduct.model_validate(record).model_dump(mode="json"))
-    return {"products": products}
+    return retailer_products_response(query, "bestbuy.com", discover_bestbuy_products)
 
 
 class SearchHandler(BaseHTTPRequestHandler):
@@ -927,21 +998,11 @@ class SearchHandler(BaseHTTPRequestHandler):
         try:
             database = load_database_config()
             catalog = load_catalog(database)
-            bestbuy_products, walmart_products, discovery_errors = (
-                discover_homepage_products()
-            )
-            bestbuy_products = validate_retailer_products(bestbuy_products)
-            walmart_products = validate_retailer_products(walmart_products)
-            collections = deal_collections(
-                catalog,
-                bestbuy_products=bestbuy_products,
-                walmart_products=walmart_products,
-            )
             self.send_json(
                 200,
                 {
-                    "collections": collections,
-                    "discovery_errors": discovery_errors,
+                    "collections": deal_collections(catalog),
+                    "discovery_errors": [],
                 },
             )
         except ConfigurationError as error:

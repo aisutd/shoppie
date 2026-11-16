@@ -18,10 +18,13 @@ from scraper.bestbuy_search import DiscoveryError
 URL = "https://www.bestbuy.com/product/synthetic-macbook-air/TESTM5"
 DATABASE = SimpleNamespace(url="https://synthetic.supabase.co", secret_key="sb_secret_SYNTHETIC")
 LOAD_SAVED_CANDIDATES = api.load_saved_candidates
+LOAD_CATALOG = api.load_catalog
 
 @pytest.fixture(autouse=True)
 def saved_candidate_readback(monkeypatch):
     monkeypatch.setattr(api, "load_saved_candidates", lambda database, candidates: candidates)
+    monkeypatch.setattr(api, "load_database_config", lambda: DATABASE)
+    monkeypatch.setattr(api, "load_catalog", lambda database: [])
 
 
 @pytest.fixture(autouse=True)
@@ -312,12 +315,15 @@ def test_categories_are_based_on_collected_titles(title, category):
     assert live.infer_category(title) == category
 
 
-def test_live_search_bypasses_old_catalog_and_invalidates_cache(monkeypatch, candidate):
+def test_live_search_invalidates_cache_before_loading_the_catalog(monkeypatch, candidate):
     monkeypatch.setattr(api, "load_database_config", lambda: DATABASE)
-    monkeypatch.setattr(api, "load_catalog", Mock(side_effect=AssertionError("must use this request's candidates")))
+    monkeypatch.setattr(api, "_catalog_cache", {"expires_at": float("inf"), "products": []})
+    def load_catalog(database):
+        assert api._catalog_cache["expires_at"] == 0
+        return []
+    monkeypatch.setattr(api, "load_catalog", load_catalog)
     collector = Mock(return_value=([candidate], {"saved": 1, "errors": [], "result_source": "live"}))
     monkeypatch.setattr(api, "collect_live_products", collector)
-    api._catalog_cache["expires_at"] = float("inf")
     response = api.search_response("MacBook Air M5 24 GB RAM under $1200")
     assert response["products"][0]["product_url"] == URL
     assert api._catalog_cache["expires_at"] == 0
@@ -325,11 +331,14 @@ def test_live_search_bypasses_old_catalog_and_invalidates_cache(monkeypatch, can
     assert "24" in collector.call_args.args[0]
 
 
-def test_failed_collection_never_returns_existing_catalog(monkeypatch, candidate):
+def test_failed_collection_returns_relevant_stored_catalog(monkeypatch, candidate):
     monkeypatch.setattr(api, "load_database_config", lambda: DATABASE)
     monkeypatch.setattr(api, "collect_live_products", lambda *a, **kw: ([], {"saved": 0, "errors": [], "result_source": "catalog"}))
     monkeypatch.setattr(api, "load_catalog", lambda *a, **kw: [candidate])
-    assert api.search_response("MacBook")["collection"]["matched"] == 0
+    response = api.search_response("MacBook")
+    assert [product["product_url"] for product in response["products"]] == [URL]
+    assert response["collection"]["catalog_matches"] == 1
+    assert response["collection"]["result_source"] == "catalog"
 
 
 def test_model_expansion_cannot_leak_unrelated_catalog_records(monkeypatch, candidate):
@@ -386,7 +395,9 @@ def test_homepage_groups_use_current_catalog_records(candidate):
     assert [product["id"] for product in collections[2]["products"]] == [
         "6", "5", "4", "3", "2", "1",
     ]
-    assert collections[3]["products"] == []
+    assert [product["id"] for product in collections[3]["products"]] == [
+        "6", "5", "4", "3", "2", "1", "0",
+    ]
     assert collections[4]["products"] == []
 
 
@@ -502,15 +513,12 @@ def test_search_response_does_not_fall_back_to_non_tech_catalog(monkeypatch, can
     assert response["products"] == []
 
 
-def test_homepage_deals_endpoint_reads_database_catalog(monkeypatch, candidate):
-    offer = {**candidate, "regular_price": "1299.99"}
+def test_deals_endpoint_reads_catalog_without_live_discovery(monkeypatch, candidate):
+    walmart = {**candidate, "source": "walmart.com", "product_url": "https://www.walmart.com/ip/123456"}
     monkeypatch.setattr(api, "load_database_config", Mock(return_value=DATABASE))
-    monkeypatch.setattr(api, "load_catalog", Mock(return_value=[candidate]))
-    monkeypatch.setattr(
-        api,
-        "discover_homepage_products",
-        Mock(return_value=([offer], [], [])),
-    )
+    monkeypatch.setattr(api, "load_catalog", Mock(return_value=[candidate, walmart]))
+    for name in ("discover_homepage_products", "discover_bestbuy_products", "discover_walmart_products", "collect_live_products"):
+        monkeypatch.setattr(api, name, Mock(side_effect=AssertionError("Discover load must not start live collection")))
     handler = object.__new__(api.SearchHandler)
     handler.path = "/api/deals"
     handler.send_json = Mock()
@@ -520,10 +528,10 @@ def test_homepage_deals_endpoint_reads_database_catalog(monkeypatch, candidate):
     api.load_catalog.assert_called_once_with(DATABASE)
     status, payload = handler.send_json.call_args.args
     assert status == 200
-    assert payload["collections"][0]["products"] == [candidate]
-    assert payload["collections"][1]["products"][0]["regular_price"] == "1299.99"
-    assert payload["collections"][1]["products"][0]["savings_percent"] == 23.1
-    assert payload["collections"][3]["products"][0]["regular_price"] == "1299.99"
+    assert payload["collections"][0]["products"] == [candidate, walmart]
+    assert payload["collections"][1]["products"] == []
+    assert payload["collections"][3]["products"] == [candidate]
+    assert payload["collections"][4]["products"] == [walmart]
     assert payload["discovery_errors"] == []
 
 
@@ -559,6 +567,7 @@ def test_homepage_bestbuy_search_returns_validated_live_products(monkeypatch, ca
         "title": "Synthetic 24-inch monitor",
         "image_url": "https://images.example.test/monitor.jpg",
         "category": "electronics",
+        "regular_price": "1299.99",
     }
     discover = Mock(return_value=[bestbuy_product])
     monkeypatch.setattr(api, "discover_bestbuy_products", discover)
@@ -576,6 +585,9 @@ def test_homepage_bestbuy_search_returns_validated_live_products(monkeypatch, ca
     assert status == 200
     assert payload["products"][0]["source"] == "bestbuy.com"
     assert payload["products"][0]["category"] == "monitors"
+    assert payload["discounts"][0]["product_url"] == payload["products"][0]["product_url"]
+    assert payload["discounts"][0]["regular_price"] == "1299.99"
+    assert payload["discounts"][0]["savings_percent"] == 23.1
 
 
 def test_endpoint_rejects_empty_query_before_any_collection(monkeypatch):
@@ -772,9 +784,11 @@ def test_non_tech_live_candidates_are_not_saved(monkeypatch, candidate, title, c
 
 @pytest.mark.parametrize('retailer', ['bestbuy', 'walmart'])
 def test_retailer_endpoints_exclude_non_tech(monkeypatch, candidate, retailer):
+    if retailer == 'walmart':
+        candidate = dict(candidate, source='walmart.com', product_url='https://www.walmart.com/ip/123456')
     mug = dict(candidate, title='Ceramic Mug', category='electronics')
     monkeypatch.setattr(api, f'discover_{retailer}_products', lambda *a, **kw: [mug, candidate])
-    products = getattr(api, f'{retailer}_products_response')('products')['products']
+    products = getattr(api, f'{retailer}_products_response')('laptop')['products']
     assert [p['title'] for p in products] == [candidate['title']]
 
 
@@ -827,11 +841,83 @@ def test_live_response_saves_then_reads_then_ranks(monkeypatch, candidate):
         assert catalog[0]['id'] == 'database-id'
         return catalog
 
+    def read_catalog(database):
+        events.append('catalog')
+        return [candidate]
+
     monkeypatch.setattr(api, 'load_saved_candidates', readback)
     monkeypatch.setattr(api, 'search_products', rank)
-    monkeypatch.setattr(api, 'load_catalog', Mock(side_effect=AssertionError('no global catalog')))
+    monkeypatch.setattr(api, 'load_catalog', read_catalog)
     assert api.search_response('MacBook Air under $1200')['collection']['matched'] == 1
-    assert events == ['save', 'read', 'rank']
+    assert events == ['save', 'read', 'catalog', 'rank']
+
+
+def test_search_includes_more_than_sixty_stored_matches_without_duplicating_live(monkeypatch, candidate):
+    stored = [dict(candidate, id=f'stored-{i}', product_url=f'{URL}{i}') for i in range(70)]
+    stored.append(dict(candidate, price='1199.99', product_url=URL + '?utm_source=test'))
+    stored.append(dict(candidate, title='MacBook Air M4 24GB RAM', product_url=URL + 'M4'))
+    monkeypatch.setattr(api, 'load_catalog', lambda database: stored)
+    monkeypatch.setattr(api, 'collect_live_products', Mock(return_value=([candidate], {'saved': 1, 'errors': []})))
+    response = api.search_response('MacBook Air M5 under $1000')
+    assert len(response['products']) == 71
+    assert sum(row['product_url'] == URL for row in response['products']) == 1
+    assert response['collection']['live_matches'] == 1
+    assert response['collection']['catalog_matches'] == 70
+    assert response['collection']['result_source'] == 'hybrid'
+
+
+def test_walmart_selection_parameters_preserve_distinct_offers(candidate):
+    row = dict(candidate, source='walmart.com', product_url='https://www.walmart.com/ip/123456?conditionGroupCode=1')
+    duplicate = dict(row, product_url=row['product_url'] + '&utm_source=test')
+    renewed = dict(row, product_url='https://www.walmart.com/ip/123456?conditionGroupCode=2')
+    assert api.merge_search_records([row], [duplicate, renewed]) == [row, renewed]
+
+
+@pytest.mark.parametrize('query,titles,category', [
+    ('laptop', ['Laptop 16GB RAM', 'Laptop 8GB RAM'], 'laptops'),
+    ('laptop under $1000', ['Laptop 16GB RAM'], 'laptops'),
+    ('laptop with at least 16GB RAM', ['Laptop 16GB RAM'], 'laptops'),
+    ('Samsung monitor', ['Samsung 27-inch Monitor'], 'monitors'),
+    ('Sony headphones', ['Sony WH-1000XM6 Headphones'], 'headphones'),
+])
+def test_stored_matches_keep_category_budget_and_ram_rules(monkeypatch, candidate, query, titles, category):
+    catalog = [
+        dict(candidate, product_url=URL + str(i), title=title, category=kind, price=price)
+        for i, (title, kind, price) in enumerate([
+            ('Laptop 16GB RAM', 'laptops', '899.99'), ('Laptop 8GB RAM', 'laptops', '1000.00'),
+            ('Samsung 27-inch Monitor', 'monitors', '299.99'), ('Sony WH-1000XM6 Headphones', 'headphones', '399.99'),
+            ('Dell 27-inch Monitor', 'monitors', '249.99'), ('Bose QuietComfort Headphones', 'headphones', '249.99'),
+        ])
+    ]
+    monkeypatch.setattr(api, 'load_catalog', lambda database: catalog)
+    monkeypatch.setattr(api, 'collect_live_products', Mock(return_value=([], {'saved': 0, 'errors': []})))
+    products = api.search_response(query)['products']
+    assert [row['title'] for row in products] == titles
+    assert {row['category'] for row in products} == {category}
+
+
+def test_discover_search_uses_only_selected_retailer_catalog_and_live(monkeypatch, candidate):
+    saved_bestbuy = dict(candidate, title='Best Buy Laptop', product_url=URL + 'BB')
+    saved_walmart = dict(candidate, source='walmart.com', title='Walmart Laptop', product_url='https://www.walmart.com/ip/123456')
+    monkeypatch.setattr(api, 'load_catalog', lambda database: [saved_bestbuy, saved_walmart])
+    monkeypatch.setattr(api, 'discover_bestbuy_products', Mock(return_value=[candidate]))
+    monkeypatch.setattr(api, 'discover_walmart_products', Mock(side_effect=walmart_search.WalmartDiscoveryError('blocked', 'blocked')))
+    bestbuy = api.bestbuy_products_response('laptop')
+    walmart = api.walmart_products_response('laptop')
+    assert {row['product_url'] for row in bestbuy['products']} == {URL, saved_bestbuy['product_url']}
+    assert bestbuy['collection']['result_source'] == 'hybrid'
+    assert walmart['products'][0]['product_url'] == saved_walmart['product_url']
+    assert walmart['collection']['matched'] == 1 and 'unavailable' in walmart['collection']['message']
+
+
+def test_catalog_paginates_to_end_even_when_server_caps_page_size(monkeypatch, candidate):
+    monkeypatch.setattr(api, '_catalog_cache', {'expires_at': 0, 'products': []})
+    other = dict(candidate, id='second')
+    pages = [[candidate], [other], []]
+    get = Mock(side_effect=[Mock(json=Mock(return_value=page)) for page in pages])
+    monkeypatch.setattr(api.requests, 'get', get)
+    assert LOAD_CATALOG(DATABASE) == [candidate, other]
+    assert [call.kwargs['params']['offset'] for call in get.call_args_list] == ['0', '1', '2']
 
 
 def test_only_records_meeting_repeated_budget_are_saved(monkeypatch, candidate):

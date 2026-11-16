@@ -1,54 +1,12 @@
 import { useEffect, useState } from 'react'
-import { getProductDescription } from './productDescription'
+import Icon from './Icon.jsx'
+import ProductCard from './ProductCard.jsx'
+import ProductDetails from './ProductDetails.jsx'
+import Tabs from './Tabs.jsx'
 
-const categoryIcons = {
-  audio: '🎧',
-  computer: '💻',
-  laptop: '💻',
-  phone: '📱',
-  tablet: '📱',
-  camera: '📷',
-  gaming: '🎮',
-  tv: '📺',
-  smart: '🏠',
-}
+const resultsPerBatch = 12
 
-function getIcon(category = '') {
-  const normalized = category.toLowerCase()
-  const match = Object.entries(categoryIcons).find(([keyword]) => normalized.includes(keyword))
-  return match?.[1] || '🛍️'
-}
-
-function ProductArtwork({ product, className, showSource = false }) {
-  const [imageFailed, setImageFailed] = useState(false)
-  const hasImage = product.image_url && !imageFailed
-
-  return (
-    <div className={`relative grid place-items-center overflow-hidden bg-white ${className}`}>
-      {hasImage ? (
-        <img
-          src={product.image_url}
-          alt={product.title}
-          loading="lazy"
-          decoding="async"
-          onError={() => setImageFailed(true)}
-          className="h-full w-full object-contain p-4"
-        />
-      ) : (
-        <span className="text-7xl text-slate-400" aria-hidden="true">{getIcon(product.category)}</span>
-      )}
-      {showSource && <span className="absolute left-4 top-4 rounded-full border border-white/10 bg-[#071326]/70 px-3 py-1 text-xs font-semibold text-blue-100 backdrop-blur">{product.source || 'Catalog'}</span>}
-    </div>
-  )
-}
-
-function formatPrice(price, currency = 'USD') {
-  const amount = Number(price)
-  if (!Number.isFinite(amount)) return `${price} ${currency}`
-  return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(amount)
-}
-
-function SearchResults({ search, onBack, onRefined }) {
+function SearchResults({ search, onNewSearch, onRefined, isActive = true }) {
   const products = search?.products || []
   const retailerGroups = [
     { source: 'bestbuy.com', name: 'Best Buy' },
@@ -64,11 +22,27 @@ function SearchResults({ search, onBack, onRefined }) {
     retailerGroups.push({ source: 'other', name: 'Other retailers', products: otherProducts })
   }
   const collection = search?.collection
+  const [selectedGroup, setSelectedGroup] = useState('all')
+  const [visibleCount, setVisibleCount] = useState(resultsPerBatch)
+  const groups = [{ source: 'all', name: 'All', products }, ...retailerGroups]
+  const activeGroup = groups.find(group => group.source === selectedGroup) || groups[0]
   const [selectedProduct, setSelectedProduct] = useState(null)
   const [followUp, setFollowUp] = useState('')
   const [isRefining, setIsRefining] = useState(false)
   const [refineError, setRefineError] = useState('')
+  const visibleProducts = activeGroup.products.slice(0, visibleCount)
+  const resultSource = collection?.result_source === 'hybrid' ? 'Live + stored results'
+    : collection?.result_source === 'live' ? 'Live retailer results' : 'Stored catalog'
   const remainingQueryLength = Math.max(0, 300 - (search?.query?.trim().length || 0) - 2)
+
+  useEffect(() => {
+    if (!isActive) setSelectedProduct(null)
+  }, [isActive])
+
+  function selectGroup(group) {
+    setSelectedGroup(group)
+    setVisibleCount(resultsPerBatch)
+  }
 
   async function handleRefine(event) {
     event.preventDefault()
@@ -93,6 +67,7 @@ function SearchResults({ search, onBack, onRefined }) {
         collection: data.collection || null,
       })
       setFollowUp('')
+      setVisibleCount(resultsPerBatch)
     } catch (error) {
       setRefineError(error.message || 'Could not reach local search. Start the local API and try again.')
     } finally {
@@ -100,149 +75,76 @@ function SearchResults({ search, onBack, onRefined }) {
     }
   }
 
-  useEffect(() => {
-    if (!selectedProduct) return undefined
-    const closeOnEscape = (event) => {
-      if (event.key === 'Escape') setSelectedProduct(null)
-    }
-    window.addEventListener('keydown', closeOnEscape)
-    return () => window.removeEventListener('keydown', closeOnEscape)
-  }, [selectedProduct])
-
   return (
-    <section id="search-results" className="relative z-10 min-h-[75vh] scroll-mt-20 px-6 pb-24 pt-20 text-white sm:px-10" aria-labelledby="search-results-heading">
-      <div className="mx-auto max-w-7xl">
-        <button type="button" onClick={onBack} className="mb-8 rounded-xl border border-blue-100/15 px-4 py-2 text-sm font-semibold text-blue-100 transition hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300">
-          ← Back to Shoppie
-        </button>
-        <div className="mb-10 border-b border-blue-100/10 pb-5">
-          <h2 id="search-results-heading" className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Results for “{search?.query}”</h2>
-          <p className="mt-3 text-blue-100/65" aria-live="polite">
+    <section className="page-wrap page-enter listings-page" aria-labelledby="search-results-heading">
+      <div className="listings-heading">
+        <div>
+          <h2 id="search-results-heading" tabIndex={-1}>Results for <span>“{search?.query}”</span></h2>
+          <p className="page-description" aria-live="polite">
             {products.length} {products.length === 1 ? 'product' : 'products'} matched
-            {collection?.result_source === 'live' ? ' from live retailer results' : ' in the stored catalog'}
+            {' · '}{resultSource}
+            {collection?.result_source === 'hybrid' && ` (${collection.live_matches} live, ${collection.catalog_matches} stored)`}
           </p>
-          {collection && (
-            <div className="mt-4 rounded-xl border border-blue-100/15 bg-[#071326]/40 p-4 text-sm text-blue-100/75" role="status">
-              <p>{collection.message}</p>
-              {collection.errors?.length > 0 && (
-                <details className="mt-2">
-                  <summary className="cursor-pointer">Collection details</summary>
-                  <ul className="mt-2 list-disc space-y-1 pl-5">
-                    {collection.errors.map((message, index) => <li key={index}>{message}</li>)}
-                  </ul>
-                </details>
-              )}
-            </div>
-          )}
         </div>
-
-        <form
-          className="mb-8 rounded-2xl border border-blue-100/10 bg-[#0b1d35]/70 p-5 sm:flex sm:items-end sm:gap-4"
-          role="search"
-          onSubmit={handleRefine}
-        >
-          <div className="min-w-0 flex-1">
-            <label htmlFor="follow-up-search" className="block text-sm font-semibold text-white">
-              Looking for something more specific?
-            </label>
-            <p className="mt-1 text-sm text-blue-100/60">
-              Add a detail to narrow these results, like a budget, screen size, or memory amount.
-            </p>
-            <input
-              id="follow-up-search"
-              name="followUp"
-              type="text"
-              value={followUp}
-              onChange={(event) => setFollowUp(event.target.value)}
-              maxLength={remainingQueryLength}
-              required
-              disabled={remainingQueryLength === 0 || isRefining}
-              placeholder="e.g. under $1,200 with at least 16 GB RAM"
-              className="mt-3 w-full rounded-xl border border-blue-100/15 bg-[#071326]/70 px-4 py-3 text-white outline-none placeholder:text-blue-100/40 focus-visible:ring-2 focus-visible:ring-blue-400 disabled:opacity-50"
-            />
+        <div className="refinement">
+          <div className="refinement-heading">
+            <label htmlFor="follow-up-search">Refine search</label>
+            <button className="text-link" type="button" onClick={onNewSearch}>New search <Icon name="arrow" /></button>
           </div>
-          <button
-            type="submit"
-            disabled={isRefining || remainingQueryLength === 0 || !followUp.trim()}
-            className="mt-3 w-full rounded-xl bg-blue-500 px-5 py-3 font-semibold text-white transition hover:bg-blue-400 disabled:cursor-wait disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300 sm:mt-0 sm:w-auto"
-          >
-            {isRefining ? 'Refining…' : 'Update search'}
-          </button>
-          {refineError && <p className="mt-3 text-sm text-rose-200 sm:basis-full" role="alert">{refineError}</p>}
-        </form>
-
-        <div className="space-y-12">
-          {retailerGroups.map((retailer) => (
-            <section key={retailer.source} aria-labelledby={`results-${retailer.source}`}>
-              <div className="mb-5 flex flex-wrap items-end justify-between gap-4 border-b border-blue-100/10 pb-4">
-                <h3 id={`results-${retailer.source}`} className="text-xl font-semibold">{retailer.name} picks</h3>
-                <span className="text-xs font-medium uppercase tracking-wider text-blue-200/60">{retailer.products.length} picks</span>
-              </div>
-              {retailer.products.length === 0 ? (
-                <p className="rounded-2xl border border-blue-100/10 bg-[#0b1d35]/50 px-5 py-8 text-center text-sm text-blue-100/60">
-                  No matching {retailer.name} listings for this search.
-                </p>
-              ) : (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {retailer.products.map((product, index) => (
-                    <article key={product.id || product.product_url} className={`anim-scale-in d-${(index % 3) + 1} group flex flex-col overflow-hidden rounded-2xl border border-blue-100/10 bg-[#0b1d35]/70 text-left shadow-lg shadow-black/10 transition duration-300 hover:-translate-y-1 hover:border-blue-200/30 hover:bg-[#102746] hover:shadow-xl hover:shadow-black/20`}>
-                      <button type="button" onClick={() => setSelectedProduct(product)} aria-label={`View details for ${product.title}`} className="flex flex-1 items-start gap-3 p-4 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-blue-300">
-                        <ProductArtwork product={product} className="h-24 w-24 shrink-0 rounded-xl" />
-                        <div className="flex min-w-0 flex-1 flex-col">
-                          <div className="flex flex-wrap items-center gap-1.5 text-xs text-blue-200/70">
-                            <span className="rounded-full bg-blue-400/10 px-2 py-0.5 font-semibold">{product.source || 'Catalog'}</span>
-                            <span>{(product.category || 'Product').replaceAll('-', ' ')}</span>
-                          </div>
-                          <h4 className="mt-1 line-clamp-2 text-sm font-semibold leading-5">{product.title}</h4>
-                          {product.scraped_at && <p className="mt-2 text-xs text-blue-100/50">Observed: {new Date(product.scraped_at).toLocaleString()}</p>}
-                          <p className="mt-2 line-clamp-2 text-xs leading-5 text-blue-100/60">{getProductDescription(product)}</p>
-                          <p className="mt-2 line-clamp-2 text-xs leading-5 text-blue-200/70"><span className="font-semibold text-blue-100">Why this match:</span> {product.match_reason}</p>
-                          <div className="mt-auto flex items-baseline gap-2 pt-2">
-                            <span className="anim-count-up text-xl font-semibold">{formatPrice(product.price, product.currency)}</span>
-                          </div>
-                        </div>
-                      </button>
-                      <div className="px-4 pb-4">
-                        <a href={product.product_url} target="_blank" rel="noreferrer" className="block w-full rounded-xl border border-blue-200/15 bg-blue-400/10 px-3 py-2 text-center text-xs font-semibold text-blue-100 transition hover:bg-blue-400/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300">
-                          View at {product.source || retailer.name} ↗
-                        </a>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              )}
-            </section>
-          ))}
-          {products.length === 0 && (
-            <p className="text-center text-sm text-blue-100/60">
-              Try a product name or model number. Live searches may not return a listing that meets all requested specifications.
-            </p>
-          )}
+          <form className="search-form" role="search" onSubmit={handleRefine} aria-busy={isRefining}>
+            <Icon name="search" />
+            <input id="follow-up-search" name="followUp" type="text" value={followUp}
+              onChange={event => setFollowUp(event.target.value)} maxLength={remainingQueryLength}
+              required disabled={remainingQueryLength === 0 || isRefining} placeholder="e.g. under $1,200" />
+            <button type="submit" className="action-button" disabled={isRefining || remainingQueryLength === 0 || !followUp.trim()}>
+              {isRefining ? 'Refining…' : 'Update search'}
+            </button>
+          </form>
+          {remainingQueryLength === 0 && <p className="field-feedback">Start a new search to enter more details.</p>}
+          {refineError && <p className="field-feedback error-text" role="alert">{refineError}</p>}
         </div>
       </div>
-
-      {selectedProduct && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#030b16]/75 p-5 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedProduct(null) }}>
-          <div className="max-h-[calc(100vh-2.5rem)] w-full max-w-md overflow-y-auto overscroll-contain rounded-3xl border border-blue-100/15 bg-[#102746] p-7 shadow-2xl shadow-black/40" role="dialog" aria-modal="true" aria-labelledby="search-product-dialog-title">
-            <ProductArtwork key={selectedProduct.id || selectedProduct.product_url} product={selectedProduct} className="mb-4 h-48 w-full rounded-2xl" />
-            <p className="text-xs font-semibold uppercase tracking-wider text-blue-200/60">{(selectedProduct.category || 'Product').replaceAll('-', ' ')} · {selectedProduct.source || 'Catalog'}</p>
-            <h3 id="search-product-dialog-title" className="mt-2 break-words text-2xl font-semibold">{selectedProduct.title}</h3>
-            <p className="mt-3 break-words leading-7 text-blue-100/70">{getProductDescription(selectedProduct)}</p>
-            {selectedProduct.scraped_at && <p className="mt-2 text-xs text-blue-100/50">Observed: {new Date(selectedProduct.scraped_at).toLocaleString()}</p>}
-            <div className="mt-4 rounded-xl border border-blue-100/10 bg-[#071326]/40 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wider text-blue-200/60">Why this result</p>
-              <p className="mt-2 text-sm leading-6 text-blue-100/75">{selectedProduct.match_reason}</p>
-            </div>
-            <div className="mt-6 flex items-center justify-between gap-3 border-t border-blue-100/10 pt-5">
-              <span className="text-2xl font-semibold">{formatPrice(selectedProduct.price, selectedProduct.currency)}</span>
-              <button type="button" onClick={() => setSelectedProduct(null)} className="rounded-xl border border-blue-100/15 px-4 py-2 text-sm font-semibold text-blue-100 transition hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300">Close</button>
-            </div>
-            <a href={selectedProduct.product_url} target="_blank" rel="noreferrer" className="mt-4 block w-full rounded-xl bg-blue-500 px-4 py-3 text-center text-sm font-semibold text-white transition hover:bg-blue-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300">
-              View at {selectedProduct.source || 'retailer'} ↗
-            </a>
-          </div>
+      {collection && (
+        <div className="collection-status" role="status">
+          <p>{collection.message}</p>
+          {collection.errors?.length > 0 && (
+            <details>
+              <summary>Collection details</summary>
+              <ul>{collection.errors.map((message, index) => <li key={index}>{message}</li>)}</ul>
+            </details>
+          )}
         </div>
       )}
+      <Tabs id="retailers" label="Filter results by retailer" selected={activeGroup.source}
+        onSelect={selectGroup} items={groups.map(group => ({
+          id: group.source, label: group.name, count: group.products.length,
+        }))} />
+      {groups.map(group => (
+        <div key={group.source} id={`retailers-panel-${group.source}`} role="tabpanel"
+          aria-labelledby={`retailers-tab-${group.source}`} hidden={group !== activeGroup}>
+          {group === activeGroup && (group.products.length ? (
+            <>
+              <div className="listing-grid">
+                {visibleProducts.map(product => <ProductCard key={product.id || product.product_url}
+                  product={product} retailer={group.source === 'all' ? undefined : group.name} onPreview={setSelectedProduct} />)}
+              </div>
+              {group.products.length > resultsPerBatch && (
+                <div className="result-batching">
+                  <p role="status">Showing {visibleProducts.length} of {group.products.length} matches</p>
+                  <button type="button" className="secondary-button" disabled={visibleProducts.length === group.products.length}
+                    onClick={() => setVisibleCount(count => count + resultsPerBatch)}>Load more</button>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="state-box">
+              <h2>{group.source === 'all' ? 'No matching products' : `No matching ${group.name} listings`}</h2>
+              <p>Try a product name or model number. Live searches may not return a listing that meets every specification.</p>
+            </div>
+          ))}
+        </div>
+      ))}
+      <ProductDetails product={isActive ? selectedProduct : null} onClose={() => setSelectedProduct(null)} />
     </section>
   )
 }

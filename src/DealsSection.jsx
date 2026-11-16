@@ -1,60 +1,51 @@
 import { useEffect, useRef, useState } from 'react'
-import { getProductDescription } from './productDescription'
 import { isTechProduct } from './productEligibility'
+import Icon from './Icon.jsx'
+import CollectionPicker from './CollectionPicker.jsx'
+import ProductCard from './ProductCard.jsx'
+import ProductDetails from './ProductDetails.jsx'
 
 const collections = [
-  {
-    id: 'all-time-lows',
-    title: 'Lowest current prices',
-    description: 'Lowest current prices in our catalog; historical lows are not tracked.',
-  },
-  {
-    id: 'deep-discounts',
-    title: 'Deep discounts',
-    description: 'Discounts appear when verified regular and sale prices are available.',
-  },
-  {
-    id: 'new-releases',
-    title: 'Recently observed',
-    description: 'Most recently observed catalog products; release dates are not tracked.',
-  },
-  {
-    id: 'bestbuy-picks',
-    title: 'Best Buy picks',
-    description: 'Live search-card listings across product categories from Best Buy.',
-  },
-  {
-    id: 'walmart-picks',
-    title: 'Walmart picks',
-    description: 'Live search-card listings across product categories from Walmart.',
-  },
+  { id: 'bestbuy-picks', label: 'Best Buy Picks', icon: 'tag', retailer: 'Best Buy', endpoint: '/api/bestbuy-search' },
+  { id: 'walmart-picks', label: 'Walmart Picks', icon: 'spark', retailer: 'Walmart', endpoint: '/api/walmart-search' },
+  { id: 'all-time-lows', label: 'Lowest Current Prices', icon: 'trend',
+    description: 'The lowest listed prices in the current catalog.' },
+  { id: 'deep-discounts', label: 'High Discounts', icon: 'percent',
+    description: 'Listings with verified regular and sale prices.' },
+  { id: 'new-releases', label: 'Recently Observed', icon: 'clock',
+    description: 'The latest product observations in the catalog.' },
 ]
 const EMPTY_PRODUCTS = []
+const allCollections = 'all'
+const collectionOptions = [{ id: allCollections, label: 'No Filters', icon: 'filter' }, ...collections]
 
-function formatPrice(price, currency = 'USD') {
-  const amount = Number(price)
-  if (!Number.isFinite(amount)) return `${price} ${currency}`
-  return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(amount)
-}
+function ProductRail({ products, title, onPreview, showObserved = false, retailer }) {
+  const rail = useRef(null)
 
-function ProductArtwork({ product, badge, className = 'h-24 w-24 shrink-0 rounded-xl' }) {
-  const [imageFailed, setImageFailed] = useState(false)
+  function scroll(direction) {
+    const motionReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    rail.current?.scrollBy({ left: direction * rail.current.clientWidth, behavior: motionReduced ? 'instant' : 'smooth' })
+  }
 
   return (
-    <div className={`relative grid place-items-center overflow-hidden bg-white ${className}`}>
-      {product.image_url && !imageFailed ? (
-        <img
-          src={product.image_url}
-          alt={product.title}
-          loading="lazy"
-          decoding="async"
-          onError={() => setImageFailed(true)}
-          className="h-full w-full object-contain p-4"
-        />
-      ) : (
-        <span className="text-6xl text-slate-400" aria-hidden="true">▧</span>
+    <div className="rail-frame">
+      {products.length > 1 && (
+        <div className="rail-controls">
+          <button type="button" className="icon-button" aria-label={`Show previous ${title} products`} onClick={() => scroll(-1)}>
+            <Icon name="left" />
+          </button>
+          <button type="button" className="icon-button" aria-label={`Show more ${title} products`} onClick={() => scroll(1)}>
+            <Icon name="right" />
+          </button>
+        </div>
       )}
-      {badge && <span className="absolute left-4 top-4 rounded-full bg-[#071326]/80 px-3 py-1 text-xs font-semibold text-white">{badge}</span>}
+      <div className="product-rail" ref={rail}>
+        {products.map((product) => (
+          <ProductCard key={product.id || product.product_url} product={product} layout="collection" retailer={retailer}
+            badge={showObserved && product.scraped_at ? new Date(product.scraped_at).toLocaleDateString() : undefined}
+            onPreview={onPreview} />
+        ))}
+      </div>
     </div>
   )
 }
@@ -68,18 +59,24 @@ async function requestRetailerProducts(endpoint, query, signal) {
   })
   const data = await response.json()
   if (!response.ok) throw new Error(data.error || 'Could not load retailer products.')
-  return (data.products || []).filter(isTechProduct)
+  return {
+    products: (data.products || []).filter(isTechProduct),
+    collection: data.collection,
+    discounts: (data.discounts || []).filter(isTechProduct),
+  }
 }
 
-function RetailerPicks({ retailer, endpoint, initialProducts, homepageLoading, onPreview }) {
+function RetailerPicks({ retailer, endpoint, initialProducts, homepageLoading, onPreview, onDiscounts }) {
   const retailerId = retailer.toLowerCase().replaceAll(' ', '-')
-  const [query, setQuery] = useState('laptop')
+  const [query, setQuery] = useState('')
   const [products, setProducts] = useState(initialProducts.filter(isTechProduct))
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+  const [searchStatus, setSearchStatus] = useState(null)
 
   useEffect(() => {
     setProducts(initialProducts.filter(isTechProduct))
+    setSearchStatus(null)
   }, [initialProducts])
 
   async function handleSearch(event) {
@@ -90,7 +87,10 @@ function RetailerPicks({ retailer, endpoint, initialProducts, homepageLoading, o
     setIsLoading(true)
     setError('')
     try {
-      setProducts(await requestRetailerProducts(endpoint, searchQuery))
+      const result = await requestRetailerProducts(endpoint, searchQuery)
+      setProducts(result.products)
+      setSearchStatus(result.collection)
+      onDiscounts(endpoint, result.discounts)
     } catch (loadError) {
       setError(loadError.message || 'Could not load retailer products.')
     } finally {
@@ -100,80 +100,69 @@ function RetailerPicks({ retailer, endpoint, initialProducts, homepageLoading, o
 
   return (
     <section aria-labelledby={`${retailerId}-picks-heading`}>
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-4 border-b border-blue-100/10 pb-4">
+      <div className="collection-heading">
         <div>
-          <h3 id={`${retailerId}-picks-heading`} className="text-xl font-semibold">{retailer} picks</h3>
-          <p className="mt-1 text-sm text-blue-100/55">Live listings and prices from {retailer} search results.</p>
+          <h2 id={`${retailerId}-picks-heading`}><Icon name={retailer === 'Best Buy' ? 'tag' : 'spark'} /> {retailer} Picks</h2>
+          <p className="page-description">Browse {retailer} picks or search its live and stored listings.</p>
         </div>
-        <form className="flex w-full gap-2 sm:w-auto" role="search" onSubmit={handleSearch}>
+        <form className="search-form retailer-search" role="search" onSubmit={handleSearch} aria-busy={isLoading}>
+          <Icon name="search" />
           <label htmlFor={`${retailerId}-product-search`} className="sr-only">Search {retailer} products</label>
-          <input
-            id={`${retailerId}-product-search`}
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            maxLength={300}
-            required
-            placeholder={`Search ${retailer}`}
-            className="min-w-0 flex-1 rounded-xl border border-blue-100/15 bg-[#071326]/70 px-4 py-2 text-sm text-white outline-none placeholder:text-blue-100/40 focus-visible:ring-2 focus-visible:ring-blue-400 sm:w-64"
-          />
-          <button type="submit" disabled={isLoading || homepageLoading} className="rounded-xl bg-blue-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-400 disabled:cursor-wait disabled:opacity-60">
+          <input id={`${retailerId}-product-search`} type="search" value={query}
+            onChange={event => setQuery(event.target.value)} maxLength={300} required autoComplete="off"
+            placeholder={`Search ${retailer} products...`} />
+          <button type="submit" className="action-button" disabled={isLoading || homepageLoading}>
             {isLoading ? 'Searching…' : 'Search'}
           </button>
         </form>
       </div>
-
+      {searchStatus && !error && !isLoading && (
+        <p className="collection-status" role="status">
+          {products.length} {products.length === 1 ? 'listing' : 'listings'} matched
+          {' · '}{searchStatus.live_matches} live, {searchStatus.catalog_matches} stored
+          {searchStatus.message && ` · ${searchStatus.message}`}
+        </p>
+      )}
       {error ? (
-        <div className="rounded-2xl border border-rose-200/20 bg-rose-950/20 px-5 py-5 text-sm text-rose-100" role="alert">
+        <div className="state-box state-error" role="alert">
           <p>{error}</p>
-          <button type="button" onClick={handleSearch} className="mt-3 rounded-lg border border-rose-100/20 px-4 py-2 font-semibold transition hover:bg-white/5">
-            Try again
-          </button>
+          <button type="button" className="secondary-button" onClick={handleSearch}>Try again</button>
         </div>
       ) : isLoading || homepageLoading ? (
-        <p className="rounded-2xl border border-blue-100/10 bg-[#0b1d35]/50 px-5 py-8 text-center text-sm text-blue-100/60" role="status">Loading live {retailer} listings…</p>
+        <p className="state-box" role="status">{isLoading ? `Searching ${retailer} listings…` : `Loading ${retailer} picks…`}</p>
       ) : products.length === 0 ? (
-        <p className="rounded-2xl border border-blue-100/10 bg-[#0b1d35]/50 px-5 py-8 text-center text-sm text-blue-100/60">No {retailer} listings matched this search.</p>
+        <p className="state-box">{searchStatus ? `No ${retailer} listings matched this search.` : `No ${retailer} picks are available yet.`}</p>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {products.map((product) => (
-            <article key={product.product_url} className="flex flex-col overflow-hidden rounded-2xl border border-blue-100/10 bg-[#0b1d35]/70 shadow-lg shadow-black/10">
-              <button type="button" onClick={() => onPreview(product)} aria-label={`Preview ${product.title}`} className="flex flex-1 items-start gap-3 p-4 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-blue-300">
-                <ProductArtwork product={product} />
-                <div className="flex min-w-0 flex-1 flex-col">
-                  <div className="flex flex-wrap items-center gap-1.5 text-xs text-blue-200/70">
-                    <span className="rounded-full bg-blue-400/10 px-2 py-0.5 font-semibold">{product.source || retailer}</span>
-                    <span>{(product.category || 'Product').replaceAll('-', ' ')}</span>
-                  </div>
-                  <h4 className="mt-1 line-clamp-2 text-sm font-semibold leading-5">{product.title}</h4>
-                  <p className="mt-2 line-clamp-2 text-xs leading-5 text-blue-100/60">{getProductDescription(product)}</p>
-                  <p className="mt-auto flex flex-wrap items-baseline gap-2 pt-2">
-                    <span className="text-xl font-semibold">{formatPrice(product.price, product.currency)}</span>
-                    {product.regular_price && <span className="text-sm text-blue-100/45 line-through">{formatPrice(product.regular_price, product.currency)}</span>}
-                  </p>
-                </div>
-              </button>
-              <div className="px-4 pb-4">
-                <a href={product.product_url} target="_blank" rel="noreferrer" className="block w-full rounded-xl border border-blue-200/15 bg-blue-400/10 px-3 py-2 text-center text-xs font-semibold text-blue-100 transition hover:bg-blue-400/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300">
-                  View at {retailer} ↗
-                </a>
-              </div>
-            </article>
-          ))}
-        </div>
+        <ProductRail products={products} title={`${retailer} Picks`} onPreview={onPreview} retailer={retailer} />
       )}
     </section>
   )
 }
 
-function DealsSection() {
+function DealsSection({ isActive = true, footer } = {}) {
+  const [activeCollection, setActiveCollection] = useState(allCollections)
   const [selectedProduct, setSelectedProduct] = useState(null)
-  const carouselRefs = useRef({})
   const [productsByCollection, setProductsByCollection] = useState({})
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
   const [discoveryErrors, setDiscoveryErrors] = useState([])
   const [reloadKey, setReloadKey] = useState(0)
+  const [discountsByRetailer, setDiscountsByRetailer] = useState({})
+
+  function rememberDiscounts(endpoint, discounts) {
+    setDiscountsByRetailer(current => ({ ...current, [endpoint]: discounts }))
+  }
+
+  const discounts = new Map()
+  for (const product of [...(productsByCollection['deep-discounts'] || EMPTY_PRODUCTS), ...Object.values(discountsByRetailer).flat()]) {
+    discounts.set(product.product_url, product)
+  }
+  const highDiscounts = [...discounts.values()].sort((left, right) =>
+    right.savings_percent - left.savings_percent || left.title.localeCompare(right.title)).slice(0, 12)
+
+  useEffect(() => {
+    if (!isActive) setSelectedProduct(null)
+  }, [isActive])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -206,139 +195,61 @@ function DealsSection() {
     return () => controller.abort()
   }, [reloadKey])
 
-  const scrollProducts = (collectionId, direction) => {
-    const carousel = carouselRefs.current[collectionId]
-    if (!carousel) return
-
-    carousel.scrollBy({
-      left: direction * carousel.clientWidth,
-      behavior: 'smooth',
-    })
-  }
-
   return (
-    <section id="deals" className="relative z-10 scroll-mt-20 px-6 pb-24 pt-12 text-white sm:px-10 sm:pb-32" aria-labelledby="discover-heading">
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-14 text-center">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-blue-200/70">Curated for you</p>
-          <h2 id="discover-heading" className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Discover great finds</h2>
-          <p className="mx-auto mt-3 max-w-xl text-blue-100/65">Browse real products from our catalog, with current prices and retailer links.</p>
-        </div>
-
-        <div className="space-y-14">
-          <RetailerPicks retailer="Best Buy" endpoint="/api/bestbuy-search" initialProducts={productsByCollection['bestbuy-picks'] || EMPTY_PRODUCTS} homepageLoading={isLoading} onPreview={setSelectedProduct} />
-          <RetailerPicks retailer="Walmart" endpoint="/api/walmart-search" initialProducts={productsByCollection['walmart-picks'] || EMPTY_PRODUCTS} homepageLoading={isLoading} onPreview={setSelectedProduct} />
-          {error && (
-            <div className="rounded-2xl border border-rose-200/20 bg-rose-950/20 px-5 py-5 text-center text-sm text-rose-100" role="alert">
-              <p>{error}</p>
-              <button type="button" onClick={() => setReloadKey((key) => key + 1)} className="mt-3 rounded-lg border border-rose-100/20 px-4 py-2 font-semibold transition hover:bg-white/5">
-                Try again
-              </button>
-            </div>
-          )}
-          {!error && discoveryErrors.length > 0 && (
-            <p className="rounded-2xl border border-amber-200/20 bg-amber-950/20 px-5 py-4 text-sm text-amber-100" role="status">
-              Some retailer categories could not be loaded: {discoveryErrors.join('; ')}
-            </p>
-          )}
-          {collections.filter((collection) => !['bestbuy-picks', 'walmart-picks'].includes(collection.id)).map((collection) => {
-            const products = productsByCollection[collection.id] || []
-            return (
-              <section key={collection.id} aria-labelledby={`collection-${collection.id}`}>
-              <div className="mb-5 flex flex-wrap items-end justify-between gap-4 border-b border-blue-100/10 pb-4">
-                <div>
-                  <h3 id={`collection-${collection.id}`} className="anim-fade-left text-xl font-semibold">{collection.title}</h3>
-                  <p className="mt-1 text-sm text-blue-100/55">{collection.description}</p>
-                </div>
-                <span className="text-xs font-medium uppercase tracking-wider text-blue-200/60">{products.length} picks</span>
-              </div>
-
-              {isLoading ? (
-                <p className="rounded-2xl border border-blue-100/10 bg-[#0b1d35]/50 px-5 py-8 text-center text-sm text-blue-100/60" role="status">Loading real products from the catalog…</p>
-              ) : error ? null : products.length === 0 ? (
-                <p className="rounded-2xl border border-blue-100/10 bg-[#0b1d35]/50 px-5 py-8 text-center text-sm text-blue-100/60">
-                  {collection.id === 'deep-discounts'
-                    ? 'No verified sale prices were returned by Best Buy or Walmart right now.'
-                    : 'No products are available in this section yet.'}
-                </p>
-              ) : (
-                <div className="relative">
-                  <button type="button" onClick={() => scrollProducts(collection.id, -1)} aria-label={`Show previous ${collection.title} products`} className="absolute -left-4 top-1/2 z-20 grid size-11 -translate-y-1/2 place-items-center rounded-full border border-blue-100/20 bg-[#0b1d35]/95 text-xl text-blue-100 shadow-lg shadow-black/30 backdrop-blur transition hover:scale-105 hover:border-blue-200/50 hover:bg-navy focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300 sm:-left-5">←</button>
-                  <button type="button" onClick={() => scrollProducts(collection.id, 1)} aria-label={`Show more ${collection.title} products`} className="absolute -right-4 top-1/2 z-20 grid size-11 -translate-y-1/2 place-items-center rounded-full border border-blue-100/20 bg-[#0b1d35]/95 text-xl text-blue-100 shadow-lg shadow-black/30 backdrop-blur transition hover:scale-105 hover:border-blue-200/50 hover:bg-navy focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300 sm:-right-5">→</button>
-                  <div ref={(element) => { carouselRefs.current[collection.id] = element }} className="scrollbar-hide flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth pb-2">
-                    {products.map((product, index) => (
-                      <article
-                        key={product.id || product.product_url}
-                        className={`anim-scale-in d-${(index % 3) + 1} group flex basis-full shrink-0 snap-start flex-col overflow-hidden rounded-2xl border border-blue-100/10 bg-[#0b1d35]/70 text-left shadow-lg shadow-black/10 transition duration-300 hover:-translate-y-1 hover:border-blue-200/30 hover:bg-[#102746] hover:shadow-xl hover:shadow-black/20 sm:basis-[calc((100%_-_1rem)/2)] lg:basis-[calc((100%_-_2rem)/3)]`}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => setSelectedProduct(product)}
-                          className="flex flex-1 items-start gap-3 p-4 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-blue-300"
-                          aria-label={`Preview ${product.title}`}
-                        >
-                          <ProductArtwork product={product} />
-                          <div className="flex min-w-0 flex-1 flex-col">
-                            <div className="flex flex-wrap items-center gap-1.5 text-xs text-blue-200/70">
-                              <span className="rounded-full bg-blue-400/10 px-2 py-0.5 font-semibold">{product.source || 'Catalog'}</span>
-                              <span>{(product.category || 'Product').replaceAll('-', ' ')}</span>
-                            </div>
-                            <p className="mt-1 text-xs text-blue-200/60">{collection.title}</p>
-                            <h4 className="mt-1 line-clamp-2 text-sm font-semibold leading-5">{product.title}</h4>
-                            <p className="mt-2 line-clamp-2 text-xs leading-5 text-blue-100/60">{getProductDescription(product)}</p>
-                            {product.scraped_at && <p className="mt-2 text-xs text-blue-100/50">Observed: {new Date(product.scraped_at).toLocaleDateString()}</p>}
-                            <div className="mt-auto flex flex-wrap items-baseline gap-2 pt-2">
-                              <span className="anim-count-up text-xl font-semibold">{formatPrice(product.price, product.currency)}</span>
-                              {product.regular_price && (
-                                <>
-                                  <span className="text-sm text-blue-100/45 line-through">{formatPrice(product.regular_price, product.currency)}</span>
-                                  {product.savings_percent > 0 && <span className="text-sm font-semibold text-emerald-300">{product.savings_percent}% off</span>}
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        </button>
-                        <div className="px-4 pb-4">
-                          <a href={product.product_url} target="_blank" rel="noreferrer" className="block w-full rounded-xl border border-blue-200/15 bg-blue-400/10 px-3 py-2 text-center text-xs font-semibold text-blue-100 transition hover:bg-blue-400/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300">
-                            View at {product.source || 'retailer'} ↗
-                          </a>
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                </div>
-              )}
-              </section>
-            )
-          })}
-        </div>
-      </div>
-
-      {selectedProduct && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#030b16]/75 p-5 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedProduct(null) }}>
-          <div className="max-h-[calc(100vh-2.5rem)] w-full max-w-md overflow-y-auto overscroll-contain rounded-3xl border border-blue-100/15 bg-[#102746] p-7 shadow-2xl shadow-black/40" role="dialog" aria-modal="true" aria-labelledby="product-dialog-title">
-            <ProductArtwork product={selectedProduct} className="mb-4 h-48 w-full rounded-2xl" />
-            <p className="mt-5 text-xs font-semibold uppercase tracking-wider text-blue-200/60">{selectedProduct.category} · {selectedProduct.source}</p>
-            <h3 id="product-dialog-title" className="mt-2 break-words text-2xl font-semibold">{selectedProduct.title}</h3>
-            <p className="mt-3 break-words leading-7 text-blue-100/70">{getProductDescription(selectedProduct)}</p>
-            {selectedProduct.scraped_at && <p className="mt-2 text-xs text-blue-100/50">Observed: {new Date(selectedProduct.scraped_at).toLocaleString()}</p>}
-            {selectedProduct.match_reason && <p className="mt-2 text-sm text-blue-200/70">Why this match: {selectedProduct.match_reason}</p>}
-            {selectedProduct.savings_percent > 0 && <p className="mt-2 text-sm text-emerald-300">{selectedProduct.savings_percent}% off</p>}
-            <div className="mt-6 flex items-center justify-between border-t border-blue-100/10 pt-5">
-              <span className="text-2xl font-semibold">
-                {formatPrice(selectedProduct.price, selectedProduct.currency)}
-                {selectedProduct.regular_price && (
-                  <span className="ml-2 text-sm text-blue-100/45 line-through">{formatPrice(selectedProduct.regular_price, selectedProduct.currency)}</span>
-                )}
-              </span>
-              <button type="button" onClick={() => setSelectedProduct(null)} className="rounded-xl border border-blue-100/15 px-4 py-2 text-sm font-semibold text-blue-100 transition hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300">Close</button>
-            </div>
-            <a href={selectedProduct.product_url} target="_blank" rel="noreferrer" className="mt-4 block w-full rounded-xl bg-blue-500 px-4 py-3 text-center text-sm font-semibold text-white transition hover:bg-blue-400">
-              View at {selectedProduct.source || 'retailer'} ↗
-            </a>
-          </div>
+    <section className="page-wrap page-enter discover-page" aria-labelledby="discover-heading">
+      <h1 id="discover-heading">Discover <span className="page-accent">great finds.</span></h1>
+      <p className="page-description">Browse retailer picks, current prices, and the latest catalog finds.</p>
+      <CollectionPicker items={collectionOptions} selected={activeCollection} onSelect={setActiveCollection} isActive={isActive} />
+      {error && (
+        <div className="state-box state-error" role="alert">
+          <p>{error}</p>
+          <button type="button" className="secondary-button" onClick={() => setReloadKey(key => key + 1)}>Try again</button>
         </div>
       )}
+      {!error && discoveryErrors.length > 0 && (
+        <div className="collection-status" role="status">
+          <details>
+            <summary>Some retailer categories could not be loaded</summary>
+            <ul>{discoveryErrors.map((message, index) => <li key={index}>{message}</li>)}</ul>
+          </details>
+        </div>
+      )}
+      {collections.map(collection => {
+        const products = collection.id === 'deep-discounts' ? highDiscounts : productsByCollection[collection.id] || EMPTY_PRODUCTS
+        return (
+          <div key={collection.id} className="discover-collection" id={`discover-panel-${collection.id}`}
+            hidden={activeCollection !== allCollections && activeCollection !== collection.id}>
+            <div className="collection-content">
+              {collection.retailer ? (
+                <RetailerPicks retailer={collection.retailer} endpoint={collection.endpoint}
+                  initialProducts={products} homepageLoading={isLoading} onPreview={setSelectedProduct} onDiscounts={rememberDiscounts} />
+              ) : (
+                <>
+                  <div className="collection-heading">
+                    <div>
+                      <h2><Icon name={collection.icon} /> {collection.label}</h2>
+                      <p className="page-description">{collection.description}</p>
+                    </div>
+                    <span className="collection-count">{products.length} {products.length === 1 ? 'pick' : 'picks'}</span>
+                  </div>
+                  {isLoading ? (
+                    <p className="state-box" role="status">Loading real products from the catalog…</p>
+                  ) : error ? null : products.length === 0 ? (
+                    <p className="state-box">{collection.id === 'deep-discounts'
+                      ? 'No verified discounts yet. Search Best Buy or Walmart to check for current discounts.'
+                      : 'No products are available in this section yet.'}</p>
+                  ) : (
+                    <ProductRail products={products} title={collection.label} onPreview={setSelectedProduct}
+                      showObserved={collection.id === 'new-releases'} />
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        )
+      })}
+      {footer}
+      <ProductDetails product={isActive ? selectedProduct : null} onClose={() => setSelectedProduct(null)} />
     </section>
   )
 }
