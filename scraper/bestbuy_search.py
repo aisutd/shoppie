@@ -7,6 +7,7 @@ whereas extract_product() expects one product page. No database access here.
 import json
 import logging
 import re
+from decimal import Decimal
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlencode, urljoin, urlsplit
@@ -62,11 +63,26 @@ def parse_search_cards(html):
         amount = amounts[0].get_text(" ", strip=True)
         if not re.fullmatch(r"\$(?:\d{1,3}(?:,\d{3})+|\d+)\.\d{2}", amount):
             continue
+        regular_amounts = card.select(
+            '[data-testid="price-block-regular-price"] .sr-only'
+        )
+        regular_price = None
+        if len(regular_amounts) == 1:
+            regular_amount = regular_amounts[0].get_text(" ", strip=True)
+            if re.fullmatch(
+                r"\$(?:\d{1,3}(?:,\d{3})+|\d+)\.\d{2}",
+                regular_amount,
+            ):
+                regular_value = Decimal(regular_amount[1:].replace(",", ""))
+                current_value = Decimal(amount[1:].replace(",", ""))
+                if regular_value > current_value:
+                    regular_price = format(regular_value, ".2f")
         image = card.select_one('img[data-testid="product-image"], .product-image img')
         records[url] = {
             "title": titles[0].get_text(" ", strip=True), "description": None,
             "image_url": urljoin(SEARCH_ROOT, image["src"]) if image and image.get("src") else None,
             "price": amount[1:].replace(",", ""), "currency": "USD",
+            "regular_price": regular_price,
             "product_url": url, "source": "bestbuy.com", "category": "electronics",
             "scraped_at": datetime.now(timezone.utc).isoformat(),
         }
@@ -193,6 +209,46 @@ def _search_request(url, timeout):
         ) from None
     with cffi_requests.Session() as session:
         return session.get(url, timeout=timeout, allow_redirects=False, impersonate="safari_ios")
+
+
+def discover_bestbuy_products(query, limit=MAX_PRODUCTS, timeout=8):
+    """Return Best Buy cards with their own explicit current price and image."""
+    limit = max(1, min(limit, MAX_PRODUCTS))
+    try:
+        response = _search_request(search_url(query), timeout)
+    except (requests.RequestException, OSError):
+        raise DiscoveryError(
+            "network_error",
+            "Best Buy search could not be reached or timed out.",
+        ) from None
+
+    if response.status_code != 200:
+        raise DiscoveryError(
+            "http_error",
+            f"Best Buy search returned HTTP {response.status_code}.",
+        )
+    if "text/html" not in response.headers.get("Content-Type", "").lower():
+        raise DiscoveryError(
+            "unexpected_response",
+            "Best Buy search did not return an HTML page.",
+        )
+
+    try:
+        records = parse_search_cards(response.text)
+    except ValueError as error:
+        raise DiscoveryError("page_rejected", str(error)) from None
+
+    if records:
+        return list(records.values())[:limit]
+
+    soup = _search_soup(response.text)
+    visible = soup.get_text(" ", strip=True)
+    if re.search(r"\b(no results|no products found|0 results|we couldn.t find)\b", visible, re.I):
+        return []
+    raise DiscoveryError(
+        "page_rejected",
+        "Best Buy returned no product cards with a verified current price.",
+    )
 
 
 def _discover_page(url, limit, timeout):

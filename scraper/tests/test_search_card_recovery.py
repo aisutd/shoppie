@@ -11,6 +11,14 @@ from scraper import live_search as live
 URL = 'https://www.bestbuy.com/product/synthetic-24-inch-monitor/TEST24'
 OTHER = 'https://www.bestbuy.com/product/other-monitor/OTHER'
 
+@pytest.fixture(autouse=True)
+def disable_walmart_by_default(monkeypatch):
+    monkeypatch.setattr(
+        live,
+        "discover_walmart_products",
+        lambda *args, **kwargs: [],
+    )
+
 
 def card(url=URL, price='$129.99', title='Synthetic 24-inch 160Hz Monitor'):
     return f'''<div class="product-list-item-sv">
@@ -25,6 +33,18 @@ def test_streamed_price_stays_with_its_card():
     records = search.parse_search_cards(card() + '<div data-testid="price-block-customer-price"><span class="sr-only">$999.99</span></div>')
     assert list(records) == [URL]
     assert records[URL]['price'] == '129.99'
+
+
+def test_explicit_regular_price_is_kept_only_when_higher():
+    html = card().replace(
+        '</div></div><script>',
+        '</div><div data-testid="price-block-regular-price">'
+        '<span class="sr-only">$159.99</span></div></div><script>',
+    )
+    assert search.parse_search_cards(html)[URL]['regular_price'] == '159.99'
+
+    not_discounted = html.replace('$159.99', '$99.99')
+    assert search.parse_search_cards(not_discounted)[URL]['regular_price'] is None
 
 
 def test_unlinked_fragment_is_not_product_price():

@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from scraper import config
+from scraper import live_search
 
 
 @pytest.fixture(autouse=True)
@@ -29,3 +30,12 @@ def offline_without_real_credentials(monkeypatch):
         return parse_dotenv(path, *args, **kwargs)
 
     monkeypatch.setattr(config, "dotenv_values", temporary_dotenv_only)
+
+
+@pytest.fixture(autouse=True)
+def walmart_search_is_mocked(monkeypatch):
+    monkeypatch.setattr(
+        live_search,
+        "discover_walmart_products",
+        lambda *args, **kwargs: [],
+    )

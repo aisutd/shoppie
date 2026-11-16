@@ -17,6 +17,11 @@ def listing(title, category="monitors", description=""):
 
 
 @pytest.fixture(autouse=True)
+def saved_candidate_readback(monkeypatch):
+    monkeypatch.setattr(api, "load_saved_candidates", lambda database, candidates: candidates)
+
+
+@pytest.fixture(autouse=True)
 def database(monkeypatch):
     monkeypatch.setattr(api, "load_database_config", lambda: SimpleNamespace(url="https://synthetic.supabase.co", secret_key="synthetic"))
 
@@ -77,14 +82,14 @@ def test_known_product_types(query, category):
 
 
 def test_ai_fallback_cannot_ignore_type_or_specs(monkeypatch):
-    monkeypatch.setattr(api, 'interpret_query', lambda *a: ['laptop', 'monitor'])
+    monkeypatch.setattr(api, 'interpret_query', lambda *a, **kw: ['laptop', 'monitor'])
     products = [listing('MacBook 24GB Laptop', 'laptops'), listing('Dell 27-inch Monitor 160Hz')]
     assert api.search_with_model_terms(QUERY, None, candidate_products=products, original_query=QUERY) == []
 
 
 def test_catalog_fallback_keeps_original_requirements(monkeypatch):
-    monkeypatch.setattr(api, 'collect_live_products', lambda *a: ([], {'saved': 0, 'errors': [], 'result_source': 'catalog'}))
-    monkeypatch.setattr(api, 'load_catalog', lambda *a: [listing('MacBook Air 24GB 15-inch Laptop', 'laptops')])
+    monkeypatch.setattr(api, 'collect_live_products', lambda *a, **kw: ([], {'saved': 0, 'errors': [], 'result_source': 'catalog'}))
+    monkeypatch.setattr(api, 'load_catalog', lambda *a, **kw: [listing('MacBook Air 24GB 15-inch Laptop', 'laptops')])
     response = api.search_response(QUERY)
     assert response['products'] == []
     assert response['collection']['matched'] == 0
@@ -94,15 +99,42 @@ def test_catalog_fallback_keeps_original_requirements(monkeypatch):
 def test_live_candidates_keep_original_requirements(monkeypatch):
     good = listing('Acer 24-inch Monitor 160Hz')
     wrong = listing('MacBook Air 24GB 15-inch Laptop', 'laptops')
-    monkeypatch.setattr(api, 'collect_live_products', lambda *a: ([wrong, good], {'saved': 2, 'errors': [], 'result_source': 'live'}))
+    monkeypatch.setattr(api, 'collect_live_products', lambda *a, **kw: ([wrong, good], {'saved': 2, 'errors': [], 'result_source': 'live'}))
     response = api.search_response(QUERY)
     assert [product['title'] for product in response['products']] == [good['title']]
 
 
 def test_ai_database_results_are_also_filtered(monkeypatch):
-    monkeypatch.setattr(api, 'interpret_query', lambda *a: ['monitor'])
+    monkeypatch.setattr(api, 'interpret_query', lambda *a, **kw: ['monitor'])
     wrong = listing('MacBook Air 24GB Laptop', 'laptops')
     monkeypatch.setattr(api.requests, 'get', lambda *a, **kw: SimpleNamespace(raise_for_status=lambda: None, json=lambda: [wrong]))
-    monkeypatch.setattr(api, 'load_catalog', lambda *a: [wrong])
+    monkeypatch.setattr(api, 'load_catalog', lambda *a, **kw: [wrong])
     db = SimpleNamespace(url='https://synthetic.supabase.co', secret_key='synthetic')
     assert api.search_with_model_terms(QUERY, db, original_query=QUERY) == []
+
+
+@pytest.mark.parametrize('query,prices', [
+    ('macbook; less than 1200; less than 900 dollars', ['199.99', '899']),
+    ('macbook; under 1200; under 900', ['199.99', '899']),
+    ('macbook; under 900; under 1200', ['199.99', '899']),
+    ('macbook; over 500; under 900', ['899']),
+    ('macbook; over 1200; under 900', []),
+    ('MacBook Air; less than 1200 dollars', ['899', '999', '1199']),
+    ('MacBook Air; less than 1200 dollars; less than 900 dollars', ['899']),
+    ('MacBook Air under $1200; at least $999; below $999', []),
+    ('MacBook Air between $800 and $1200; up to $999', ['899', '999']),
+    ('MacBook Air at most $999; under $999', ['899']),
+    ('MacBook Air under $999; at most $999', ['899']),
+])
+def test_refinement_intersects_every_budget(query, prices):
+    candidates = [dict(listing('Apple MacBook Air Laptop', 'laptops'), price=price)
+                  for price in ['899', '999', '1199', '1299']]
+    candidates += [listing('Ceramic Mug', 'kitchen-dining'), listing('MacBook Pro Laptop', 'laptops')]
+    assert [p['price'] for p in api.search_products(query, candidates, allow_model=False)] == prices
+
+
+def test_price_parser_leaves_specification_units_alone():
+    condition, remaining = api.parse_price_condition('laptop at least 16 GB RAM; under $1200; below $900')
+    assert condition['maximum'] == 900
+    assert '16 GB RAM' in remaining
+    assert '1200' not in remaining and '900' not in remaining

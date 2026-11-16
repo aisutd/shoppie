@@ -6,7 +6,7 @@ const homeLinks = [
   { label: 'Discover deals', href: '#deals' },
 ]
 
-function Navbar({ isShowingResults = false, onBack }) {
+function Navbar({ isShowingResults = false, onBack, onHome }) {
   const [open, setOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
 
@@ -35,8 +35,8 @@ function Navbar({ isShowingResults = false, onBack }) {
 
   const closeMenu = () => setOpen(false)
   const links = isShowingResults
-    ? [homeLinks[0], { label: 'New search', href: '#search-results', onClick: onBack }]
-    : homeLinks
+    ? [{ ...homeLinks[0], onClick: onHome }, { label: 'New search', href: '#search', onClick: onBack }]
+    : homeLinks.map((link) => link.label === 'Home' ? { ...link, onClick: onHome } : link)
   const navigateToSection = () => {
     window.cancelSmoothScroll?.()
     closeMenu()
@@ -45,17 +45,21 @@ function Navbar({ isShowingResults = false, onBack }) {
     window.cancelSmoothScroll?.()
     setOpen(true)
   }
+  const goHome = (event) => {
+    event.preventDefault()
+    navigateToSection()
+    onHome()
+  }
 
   return (
     <>
       <header className={`fixed inset-x-0 top-0 z-40 border-b transition-colors duration-300 ${scrolled ? 'border-blue-100/10 bg-[#091a30]/90 shadow-lg shadow-black/10 backdrop-blur-xl' : 'border-transparent bg-transparent'}`}>
         <div className="mx-auto flex h-[4.5rem] max-w-7xl items-center justify-between px-6 sm:px-10">
-          <a href="#home" onClick={navigateToSection} className="flex items-center gap-2.5 rounded-lg text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-300" aria-label="Shoppie home">
-            <span className="grid size-9 place-items-center rounded-xl bg-blue-500 text-lg font-bold shadow-lg shadow-blue-950/30">s</span>
-            <span className="text-lg font-semibold tracking-tight">Shoppie</span>
+          <a href="#home" onClick={goHome} className="flex items-center gap-2.5 rounded-lg text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-300" aria-label="Shoppie home">
+            <img src="/branding/shoppie-logo-primary-dark-bg.svg" alt="Shoppie" width="203" height="56" className="h-9 w-auto" />
           </a>
           <div className="flex items-center gap-3">
-            <a href="#home" onClick={navigateToSection} className="rounded-lg px-3 py-2 text-sm font-medium text-blue-100/80 transition hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300">Home</a>
+            <a href="#home" onClick={goHome} className="rounded-lg px-3 py-2 text-sm font-medium text-blue-100/80 transition hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300">Home</a>
             <button
               type="button"
               onClick={openMenu}

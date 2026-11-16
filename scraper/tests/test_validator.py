@@ -99,6 +99,13 @@ def test_unknown_optional_values_stay_null(candidate):
     assert product.discount is None
 
 
+@pytest.mark.parametrize("suffix", ["?variant=space value", "?variant=line\nbreak", "/bad\tpath"])
+def test_url_whitespace_rejects_before_database_constraint(candidate, suffix):
+    candidate["product_url"] += suffix
+    with pytest.raises(ValueError, match="unescaped whitespace"):
+        validate_record(candidate)
+
+
 def test_out_of_stock_can_still_be_valid(candidate):
     candidate["availability"] = "https://schema.org/OutOfStock"
     assert validate_record(candidate).availability == "OutOfStock"

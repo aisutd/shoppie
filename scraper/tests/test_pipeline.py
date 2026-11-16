@@ -69,7 +69,7 @@ def test_rejected_record_never_connects_even_with_save(monkeypatch):
     monkeypatch.setattr(main.scraper, "fetch_page", lambda url: '<h1>Synthetic laptop</h1>')
     connection = Mock(side_effect=AssertionError("Invalid rows must not reach a connection"))
     monkeypatch.setattr("scraper.database.connect", connection)
-    assert main.main(["--url", URL, "--save"]) == 1
+    assert main.main(["--http-only", "--url", URL, "--save"]) == 1
     connection.assert_not_called()
 
 
