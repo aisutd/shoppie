@@ -3,6 +3,7 @@
 import json
 import logging
 import math
+import os
 import re
 import threading
 import time
@@ -15,6 +16,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import requests
 
+from normalizer.embeddings import semantic_scores
 from scraper.config import ConfigurationError, load_database_config
 from scraper.live_search import CollectedProduct, collect_live_products, infer_category, is_tech_product
 from scraper.bestbuy_search import DiscoveryError, discover_bestbuy_products
@@ -32,6 +34,7 @@ CATALOG_CACHE_SECONDS = 300
 CATALOG_PAGE_SIZE = 500
 MAX_RESULTS = 60
 FUZZY_TOKEN_THRESHOLD = 0.72
+SEMANTIC_WEIGHT = 0.35  # Initial heuristic; tune against labeled shopping queries.
 SEARCH_STOP_WORDS = {
     "a", "an", "and", "at", "best", "find", "for", "get", "give",
     "good", "in", "least", "looking", "me", "my", "need", "of", "on", "please",
@@ -634,6 +637,25 @@ def apply_price_condition(products, condition):
     return filtered
 
 
+def rerank_keyword_matches(query, ranked):
+    """Reorder existing matches only; keep the original order on ML failure."""
+    if len(ranked) < 2 or os.getenv("SHOPPIE_ENABLE_SBERT") != "1":
+        return ranked
+    try:
+        scores = semantic_scores(query, [product for _, product in ranked])
+        if len(scores) != len(ranked) or not all(math.isfinite(score) for score in scores):
+            raise ValueError("Unexpected semantic scores")
+        blended = [
+            (1 - SEMANTIC_WEIGHT) * keyword + SEMANTIC_WEIGHT * min(1.0, max(0.0, semantic))
+            for (keyword, _), semantic in zip(ranked, scores, strict=True)
+        ]
+        # Stable sort preserves the original keyword/price order on ties.
+        return [ranked[i] for i in sorted(range(len(ranked)), key=blended.__getitem__, reverse=True)]
+    except Exception as error:
+        logger.warning("SBERT unavailable (%s); using keyword ranking.", type(error).__name__)
+        return ranked
+
+
 def search_products(query, catalog=None, allow_model=True):
     original_query = query
     candidate_scope = catalog is not None
@@ -678,6 +700,8 @@ def search_products(query, catalog=None, allow_model=True):
         if cheap_preference:
             cheap_matches = select_cheap_products([product for _, product in ranked])
             return cheap_matches[:MAX_RESULTS]
+        if candidate_scope and allow_model:
+            ranked = rerank_keyword_matches(original_query, ranked)
         return [product for _, product in ranked[:MAX_RESULTS]]
 
     if (price_condition or memory_condition or cheap_preference) and not normalize_tokens(text_query):
