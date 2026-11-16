@@ -1,11 +1,9 @@
 """Local-only product search API backed by Ollama and the Supabase products table."""
 
-import errno
 import json
 import logging
 import math
 import re
-import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -961,36 +959,11 @@ class SearchHandler(BaseHTTPRequestHandler):
         print(f"[local-search] {format % args}")
 
 
-def main():
-    """Bind before announcing readiness; explain common startup failures."""
+if __name__ == "__main__":
     try:
         load_database_config()
     except ConfigurationError as error:
-        print(str(error), file=sys.stderr)
-        return 1
-    try:
-        server = ThreadingHTTPServer((HOST, PORT), SearchHandler)
-    except OSError as error:
-        if error.errno == errno.EADDRINUSE:
-            print(
-                f"Cannot start Shoppie: port {PORT} is already in use. "
-                "Another backend may already be running. Use that server, or "
-                "press Ctrl+C in its terminal before restarting. "
-                f"On macOS, identify the listener with: lsof -nP -iTCP:{PORT} -sTCP:LISTEN",
-                file=sys.stderr,
-            )
-        else:
-            print(f"Cannot start Shoppie at {HOST}:{PORT}: {error.strerror or 'socket setup failed'}", file=sys.stderr)
-        return 1
-    with server:
-        print(f"Shoppie local search API listening at http://{HOST}:{PORT}")
-        print(f"Using Ollama model: {MODEL}")
-        try:
-            server.serve_forever()
-        except KeyboardInterrupt:
-            print("\nShoppie local search API stopped.")
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+        raise SystemExit(str(error)) from None
+    print(f"Shoppie local search API listening at http://{HOST}:{PORT}")
+    print(f"Using Ollama model: {MODEL}")
+    ThreadingHTTPServer((HOST, PORT), SearchHandler).serve_forever()

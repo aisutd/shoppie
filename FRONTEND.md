@@ -21,19 +21,19 @@ npm run preview
 
 ## Local AI product search
 
-Each `/api/search` request searches Best Buy and Walmart for up to eight
-distinct candidates per retailer. Best Buy candidates are collected
+Each `/api/search` request searches Best Buy and Walmart and selects up to eight
+distinct candidates across both retailers. Best Buy candidates are collected
 from their product pages; Walmart candidates use the title, current price,
 image, and product URL shown in Walmart's search result cards. The collector
 validates records and upserts them into `public.products`. The current matching
 logic then ranks this request's collected candidates, so a five-minute catalog
 cache cannot hide new listings. No additional database tables are required.
 
-The API reads back only listings successfully saved by the current request.
-Blocked discovery or failed saves can produce an empty result even when the
-catalog already contains matching products. The response's `collection` object
-reports partial collection/save failures. Existing products are never deleted
-by a search. Some homepage sections still read the existing catalog.
+When discovery is blocked, fails, or returns no products, the API searches the
+stored catalog instead. The response's `collection` object and the result-page
+notice explicitly identify live vs. stored results and partial collection/save
+failures. A failed save can still return a validated fresh result, but its save
+is not reported as confirmed. Existing products are never deleted by a search.
 
 Ollama is used as a slower fallback when no direct matches are found. For fresh
 candidates, model-expanded matching remains restricted to those candidates; it
@@ -53,7 +53,7 @@ read only by the local Python API and is never sent to the browser.
 The homepage's “Lowest current prices,” “Deep discounts,” and “Recently observed”
 sections load catalog rows through the local `/api/deals` endpoint. The same
 endpoint searches Best Buy and Walmart for laptops, monitors, phones,
-headphones and gaming controllers. Retailer shelves show
+headphones, gaming controllers, toys, and kitchen items. Retailer shelves show
 the current search-card listings, and the deep-discounts shelf includes only
 offers where a retailer explicitly provides a higher regular price. These live
 homepage picks are not written to the catalog. Search results are grouped by
@@ -135,11 +135,11 @@ Alternate searches discover candidates only: original chip, RAM and budget
 filters still determine which cards appear. Multiple results are not guaranteed
 when the retailer exposes only one compatible product or blocks collection.
 
-The flow is synchronous and limited to eight distinct product candidates per retailer, with
+The flow is synchronous and limited to eight distinct product candidates, with
 request timeouts and a scheduling budget of 55 seconds for collection. Timeouts
 are not a hard wall-clock guarantee; optional Ollama processing can add up to 90 seconds.
 One collector runs at a time per API process; a concurrent request receives
-no live results and a busy notice. The original request remains the
+stored catalog results with a busy notice. The original request remains the
 source for RAM/budget checks even when budget words are removed for discovery.
 
 Best Buy and Walmart discovery are implemented. Their adapters must be adjusted
