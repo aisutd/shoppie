@@ -883,6 +883,31 @@ def search_response(query):
             collection["errors"].append("Optional AI query expansion was unavailable; only direct matches are shown.")
     else:
         products = []
+
+    if not products:
+        try:
+            catalog = load_catalog(database)
+            collection["result_source"] = "catalog"
+            collection["catalog_fallback"] = True
+            try:
+                products = search_products(query, catalog=catalog)
+            except (requests.RequestException, ValueError):
+                products = search_products(query, catalog=catalog, allow_model=False)
+                collection["errors"].append("Optional AI query expansion was unavailable for stored catalog results; only direct matches are shown.")
+            if products:
+                collection["message"] = " ".join(part for part in (
+                    collection.get("message", "").strip(),
+                    "Showing matching listings from the stored catalog.",
+                ) if part)
+            else:
+                collection["message"] = " ".join(part for part in (
+                    collection.get("message", "").strip(),
+                    "No matching listings were found in the stored catalog.",
+                ) if part)
+        except requests.RequestException:
+            logger.warning("Stored catalog fallback failed while loading product listings.")
+            collection["errors"].append("Stored catalog fallback was unavailable.")
+
     collection["matched"] = len(products)
     products = correct_legacy_categories(products)
     intent = parse_requirements(query)
