@@ -649,11 +649,54 @@ def rerank_keyword_matches(query, ranked):
             (1 - SEMANTIC_WEIGHT) * keyword + SEMANTIC_WEIGHT * min(1.0, max(0.0, semantic))
             for (keyword, _), semantic in zip(ranked, scores, strict=True)
         ]
+        for (_, product), semantic, combined in zip(ranked, scores, blended, strict=True):
+            product["_sbert_score"] = float(semantic)
+            product["_hybrid_score"] = float(combined)
         # Stable sort preserves the original keyword/price order on ties.
         return [ranked[i] for i in sorted(range(len(ranked)), key=blended.__getitem__, reverse=True)]
     except Exception as error:
         logger.warning("SBERT unavailable (%s); using keyword ranking.", type(error).__name__)
         return ranked
+
+
+def build_recommendation(products):
+    """Explain the SBERT-assisted top choice using only observed listing data."""
+    if not products or "_sbert_score" not in products[0]:
+        return None
+    chosen = products[0]
+    reasons = [f"Highest combined keyword and SBERT relevance among {len(products)} eligible matches."]
+    if chosen.get("match_reason"):
+        reasons.append(chosen["match_reason"])
+
+    tradeoff = None
+    if len(products) > 1:
+        next_product = products[1]
+        try:
+            difference = Decimal(str(chosen["price"])) - Decimal(str(next_product["price"]))
+            if difference > 0:
+                tradeoff = (
+                    f"Costs ${difference:,.2f} more than {next_product.get('title', 'the next option')}; "
+                    "that listing ranked lower for request relevance."
+                )
+            elif difference < 0:
+                tradeoff = (
+                    f"Costs ${abs(difference):,.2f} less than {next_product.get('title', 'the next option')} "
+                    "while ranking higher for request relevance."
+                )
+            else:
+                tradeoff = (
+                    f"Same listed price as {next_product.get('title', 'the next option')}; "
+                    "this listing ranked higher for request relevance."
+                )
+        except (InvalidOperation, KeyError, TypeError):
+            tradeoff = f"Ranked above {next_product.get('title', 'the next option')} for request relevance."
+
+    return {
+        "product_url": chosen.get("product_url"),
+        "title": chosen.get("title"),
+        "reasons": reasons,
+        "tradeoff": tradeoff,
+    }
 
 
 def search_products(query, catalog=None, allow_model=True):
@@ -854,7 +897,11 @@ def search_response(query):
         collection["message"] = collection.get("message", "") + (
             " No listings could be verified against your product type and requested specifications; unrelated products were excluded."
         )
-    return {"products": products, "collection": collection}
+    recommendation = build_recommendation(products)
+    for product in products:
+        product.pop("_sbert_score", None)
+        product.pop("_hybrid_score", None)
+    return {"products": products, "collection": collection, "recommendation": recommendation}
 
 
 def walmart_products_response(query):

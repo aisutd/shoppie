@@ -83,8 +83,12 @@ MiniLM (`normalizer/embeddings.py`). All existing eligibility and keyword
 thresholds apply first. The initial relevance score combines 65% keyword score
 and 35% cosine similarity clipped to 0–1. The model sees the query and listing
 text, not database credentials. It cannot add products or relax requirements.
-Explicit cheap/lowest-price searches and the Ollama fallback keep their existing
-ordering. No database changes or frontend changes are required.
+When SBERT scoring succeeds, the results page marks the top eligible listing as
+the recommended pick and explains its match reason plus the price difference
+from the next ranked listing. This uses the existing ranking heuristic and is
+not trained on purchase choices. Explicit cheap/lowest-price searches and the
+Ollama fallback keep their existing ordering; they do not receive an SBERT
+recommendation card. No database changes are required.
 
 In the backend's Python environment, install and cache the model once:
 
@@ -94,10 +98,11 @@ python -c 'from sentence_transformers import SentenceTransformer; SentenceTransf
 SHOPPIE_ENABLE_SBERT=1 python local_search_api.py
 ```
 
-With the flag unset, or if scoring fails, results keep the keyword order. The
-server loads weights from the local cache on demand; it does not fetch model
-weights during a search. To assess the new ranking, compare runs on the same
-saved candidate lists before tuning the weights.
+With the flag unset, or if scoring fails, results keep the keyword order and
+the SBERT recommendation card is omitted. The server loads weights from the
+local cache on demand; it does not fetch model weights during a search. To
+assess the ranking, compare runs on the same saved candidate lists before
+tuning the weights.
 
 Transport recovery: when a Best Buy product detail request fails at the network
 layer, the collector searches the observed URL's model-name keywords on Best

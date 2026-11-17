@@ -20,7 +20,12 @@ function SearchSection({ onResults }) {
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Search failed. Please try again.')
-      onResults({ query: searchQuery, products: data.products || [], collection: data.collection || null })
+      onResults({
+        query: searchQuery,
+        products: data.products || [],
+        collection: data.collection || null,
+        recommendation: data.recommendation || null,
+      })
     } catch (searchError) {
       setError(searchError.message || 'Could not reach local search. Start the local API and try again.')
     } finally {

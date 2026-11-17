@@ -91,6 +91,7 @@ function SearchResults({ search, onBack, onRefined }) {
         query: refinedQuery,
         products: data.products || [],
         collection: data.collection || null,
+        recommendation: data.recommendation || null,
       })
       setFollowUp('')
     } catch (error) {
@@ -135,6 +136,17 @@ function SearchResults({ search, onBack, onRefined }) {
             </div>
           )}
         </div>
+
+        {search?.recommendation && (
+          <aside className="mb-8 rounded-2xl border border-emerald-300/30 bg-emerald-400/10 p-5 shadow-lg shadow-black/10" aria-labelledby="recommended-pick-heading">
+            <p className="text-xs font-semibold uppercase tracking-wider text-emerald-200">SBERT assisted recommendation</p>
+            <h3 id="recommended-pick-heading" className="mt-2 text-xl font-semibold text-white">Recommended pick: {search.recommendation.title}</h3>
+            <ul className="mt-3 space-y-1 text-sm leading-6 text-blue-50/80">
+              {(search.recommendation.reasons || []).map((reason, index) => <li key={index}>{reason}</li>)}
+            </ul>
+            {search.recommendation.tradeoff && <p className="mt-3 border-t border-emerald-100/15 pt-3 text-sm leading-6 text-emerald-100/80"><span className="font-semibold text-emerald-100">Tradeoff:</span> {search.recommendation.tradeoff}</p>}
+          </aside>
+        )}
 
         <form
           className="mb-8 rounded-2xl border border-blue-100/10 bg-[#0b1d35]/70 p-5 sm:flex sm:items-end sm:gap-4"
@@ -185,11 +197,12 @@ function SearchResults({ search, onBack, onRefined }) {
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {retailer.products.map((product, index) => (
-                    <article key={product.id || product.product_url} className={`anim-scale-in d-${(index % 3) + 1} group flex flex-col overflow-hidden rounded-2xl border border-blue-100/10 bg-[#0b1d35]/70 text-left shadow-lg shadow-black/10 transition duration-300 hover:-translate-y-1 hover:border-blue-200/30 hover:bg-[#102746] hover:shadow-xl hover:shadow-black/20`}>
+                    <article key={product.id || product.product_url} className={`anim-scale-in d-${(index % 3) + 1} group flex flex-col overflow-hidden rounded-2xl border ${product.product_url && product.product_url === search?.recommendation?.product_url ? 'border-emerald-300/50' : 'border-blue-100/10'} bg-[#0b1d35]/70 text-left shadow-lg shadow-black/10 transition duration-300 hover:-translate-y-1 hover:border-blue-200/30 hover:bg-[#102746] hover:shadow-xl hover:shadow-black/20`}>
                       <button type="button" onClick={() => setSelectedProduct(product)} aria-label={`View details for ${product.title}`} className="flex flex-1 items-start gap-3 p-4 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-blue-300">
                         <ProductArtwork product={product} className="h-24 w-24 shrink-0 rounded-xl" />
                         <div className="flex min-w-0 flex-1 flex-col">
                           <div className="flex flex-wrap items-center gap-1.5 text-xs text-blue-200/70">
+                            {product.product_url && product.product_url === search?.recommendation?.product_url && <span className="rounded-full bg-emerald-300/15 px-2 py-0.5 font-semibold text-emerald-100">Recommended</span>}
                             <span className="rounded-full bg-blue-400/10 px-2 py-0.5 font-semibold">{product.source || 'Catalog'}</span>
                             <span>{(product.category || 'Product').replaceAll('-', ' ')}</span>
                           </div>
