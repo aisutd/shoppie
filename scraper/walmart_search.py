@@ -15,6 +15,7 @@ from scraper.tech_scraper import check_page, clean_url, identify_product
 SEARCH_ROOT = "https://www.walmart.com/search"
 WALMART_ROOT = "https://www.walmart.com"
 MAX_PRODUCTS = 8
+MAX_SEARCH_REDIRECTS = 3
 _PRODUCT_PATH = re.compile(
     r"""(?<![A-Za-z0-9])(/ip/(?:[^/"'\\\s<>]+/)?\d+)(?:[/?#"'\\\s<>]|$)"""
 )
@@ -202,19 +203,60 @@ def _search_request(url, timeout):
 
 
 def _search_markup(query, timeout):
-    response = _search_request(search_url(query), timeout)
+    url = search_url(query)
+    visited = {url}
+    for _ in range(MAX_SEARCH_REDIRECTS + 1):
+        response = _search_request(url, timeout)
+        if response.status_code in {301, 302, 303, 307, 308}:
+            location = response.headers.get("Location")
+            if not location:
+                raise WalmartDiscoveryError(
+                    "http_error",
+                    f"Walmart search returned HTTP {response.status_code} without a redirect destination.",
+                )
+            destination = urljoin(url, location)
+            parts = urlsplit(destination)
+            host = (parts.hostname or "").lower()
+            if parts.scheme != "https" or host not in {"walmart.com", "www.walmart.com"}:
+                raise WalmartDiscoveryError(
+                    "redirect_rejected",
+                    "Walmart redirected search outside its secure retailer domain; no data was collected.",
+                )
+            if parts.path.rstrip("/").lower() == "/blocked":
+                raise WalmartDiscoveryError(
+                    "challenge_or_access_denied",
+                    "Walmart redirected search to its /blocked verification page; live discovery is unavailable for this request.",
+                )
+            if parts.path.rstrip("/").lower() != "/search":
+                raise WalmartDiscoveryError(
+                    "redirect_rejected",
+                    "Walmart redirected search to an unexpected page; no product data was collected.",
+                )
+            if destination in visited:
+                raise WalmartDiscoveryError(
+                    "redirect_loop",
+                    "Walmart search repeated a redirect; no product data was collected.",
+                )
+            visited.add(destination)
+            url = destination
+            continue
 
-    if response.status_code != 200:
-        raise WalmartDiscoveryError(
-            "http_error",
-            f"Walmart search returned HTTP {response.status_code}.",
-        )
-    if "text/html" not in response.headers.get("Content-Type", "").lower():
-        raise WalmartDiscoveryError(
-            "unexpected_response",
-            "Walmart search did not return an HTML page.",
-        )
-    return response.text
+        if response.status_code != 200:
+            raise WalmartDiscoveryError(
+                "http_error",
+                f"Walmart search returned HTTP {response.status_code}.",
+            )
+        if "text/html" not in response.headers.get("Content-Type", "").lower():
+            raise WalmartDiscoveryError(
+                "unexpected_response",
+                "Walmart search did not return an HTML page.",
+            )
+        return response.text
+
+    raise WalmartDiscoveryError(
+        "redirect_limit",
+        "Walmart search exceeded the safe redirect limit; no product data was collected.",
+    )
 
 
 def discover_walmart_urls(query, limit=MAX_PRODUCTS, timeout=8):

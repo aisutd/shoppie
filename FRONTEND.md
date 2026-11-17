@@ -29,11 +29,17 @@ validates records and upserts them into `public.products`. The current matching
 logic then ranks this request's collected candidates, so a five-minute catalog
 cache cannot hide new listings. No additional database tables are required.
 
-When discovery is blocked, fails, or returns no products, the API searches the
-stored catalog instead. The response's `collection` object and the result-page
-notice explicitly identify live vs. stored results and partial collection/save
+When discovery is partial, search supplements fresh retailer candidates with
+matching saved Best Buy and Walmart listings, preferring fresh listings when
+product URLs overlap. When live discovery returns no candidates, it searches the
+stored catalog instead. The response's `collection` object and result-page
+notice identify live, mixed, or stored results and partial collection/save
 failures. A failed save can still return a validated fresh result, but its save
 is not reported as confirmed. Existing products are never deleted by a search.
+Homepage retailer shelves also use matching saved retailer listings when live
+discovery returns nothing, and label those prices with their last observation.
+Homepage retailer discovery results are reused for 60 seconds to avoid
+repeating the same requests on development reloads.
 
 Ollama is used as a slower fallback when no direct matches are found. For fresh
 candidates, model-expanded matching remains restricted to those candidates; it
@@ -45,8 +51,8 @@ to matching categories so description keywords do not surface unrelated items.
 Memory requests such as `at least 16 GB RAM` are checked against memory values
 associated with `memory` or `RAM` in each product's title or description; a
 matching number elsewhere in the name or a storage capacity does not satisfy it.
-Queries using `cheap`, `affordable`, or similar terms return the lowest-priced
-subset of the products that match the query and any explicit filters.
+Queries using `cheap`, `affordable`, or similar terms keep all products that
+match the query and explicit filters, sorted from lowest to highest price.
 Keep `SUPABASE_URL` and `SUPABASE_SECRET_KEY` in `scraper/.env`; the key is
 read only by the local Python API and is never sent to the browser.
 
@@ -61,9 +67,9 @@ Best Buy and Walmart source, with up to eight products from each retailer.
 
 The catalog stores current prices and observation times, not price history,
 regular prices, or release dates. Accordingly, the first section ranks current
-catalog prices, verified discounts use only retailer comparison prices, and the
-last section shows recently observed products rather than claiming a verified
-release date.
+catalog prices, verified discounts appear only when a retailer provides both a
+current and a higher regular price, and the last section shows recently
+observed products rather than claiming a verified release date.
 
 1. Install Ollama, then download the model with `ollama pull qwen2.5-coder:1.5b`.
 2. Install the Python dependencies with `python -m pip install -r requirements.txt`.
@@ -86,9 +92,9 @@ text, not database credentials. It cannot add products or relax requirements.
 When SBERT scoring succeeds, the results page marks the top eligible listing as
 the recommended pick and explains its match reason plus the price difference
 from the next ranked listing. This uses the existing ranking heuristic and is
-not trained on purchase choices. Explicit cheap/lowest-price searches and the
-Ollama fallback keep their existing ordering; they do not receive an SBERT
-recommendation card. No database changes are required.
+not trained on purchase choices. Explicit cheap/lowest-price searches show all
+eligible matches in price order and identify the lowest-priced one. The Ollama
+fallback keeps its existing ordering. No database changes are required.
 
 In the backend's Python environment, install and cache the model once:
 

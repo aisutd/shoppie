@@ -120,7 +120,9 @@ function SearchResults({ search, onBack, onRefined }) {
           <h2 id="search-results-heading" className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Results for “{search?.query}”</h2>
           <p className="mt-3 text-blue-100/65" aria-live="polite">
             {products.length} {products.length === 1 ? 'product' : 'products'} matched
-            {collection?.result_source === 'live' ? ' from live retailer results' : ' in the stored catalog'}
+            {collection?.result_source === 'mixed'
+              ? ' from live retailer results and the stored catalog'
+              : collection?.result_source === 'live' ? ' from live retailer results' : ' in the stored catalog'}
           </p>
           {collection && (
             <div className="mt-4 rounded-xl border border-blue-100/15 bg-[#071326]/40 p-4 text-sm text-blue-100/75" role="status">
@@ -139,7 +141,7 @@ function SearchResults({ search, onBack, onRefined }) {
 
         {search?.recommendation && (
           <aside className="mb-8 rounded-2xl border border-emerald-300/30 bg-emerald-400/10 p-5 shadow-lg shadow-black/10" aria-labelledby="recommended-pick-heading">
-            <p className="text-xs font-semibold uppercase tracking-wider text-emerald-200">SBERT assisted recommendation</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-emerald-200">{search.recommendation.method || 'Recommendation'}</p>
             <h3 id="recommended-pick-heading" className="mt-2 text-xl font-semibold text-white">Recommended pick: {search.recommendation.title}</h3>
             <ul className="mt-3 space-y-1 text-sm leading-6 text-blue-50/80">
               {(search.recommendation.reasons || []).map((reason, index) => <li key={index}>{reason}</li>)}

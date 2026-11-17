@@ -33,6 +33,7 @@ MAX_BODY_BYTES = 8_192
 CATALOG_CACHE_SECONDS = 300
 CATALOG_PAGE_SIZE = 500
 MAX_RESULTS = 60
+HOMEPAGE_DISCOVERY_CACHE_SECONDS = 60
 FUZZY_TOKEN_THRESHOLD = 0.72
 SEMANTIC_WEIGHT = 0.35  # Initial heuristic; tune against labeled shopping queries.
 SEARCH_STOP_WORDS = {
@@ -57,6 +58,8 @@ HOMEPAGE_CATEGORIES = {
 PRICE_AMOUNT = r"\$?\s*((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,2})?)\s*(?:dollars?|usd)?"
 _catalog_cache = {"expires_at": 0, "products": []}
 _catalog_lock = threading.Lock()
+_homepage_discovery_cache = {"expires_at": 0, "products": None}
+_homepage_discovery_lock = threading.Lock()
 
 
 def interpret_query(query):
@@ -190,6 +193,10 @@ def deal_collections(products, bestbuy_products=(), walmart_products=()):
     newest_observations = sorted(
         products, key=observed_timestamp, reverse=True
     )[:6]
+    catalog_bestbuy = [product for product in products if product.get("source") == "bestbuy.com"]
+    catalog_walmart = [product for product in products if product.get("source") == "walmart.com"]
+    bestbuy_picks = bestbuy_products or catalog_bestbuy[:6]
+    walmart_picks = walmart_products or catalog_walmart[:6]
     live_products = [*bestbuy_products, *walmart_products]
     discounted_products = []
     for product in live_products:
@@ -222,8 +229,8 @@ def deal_collections(products, bestbuy_products=(), walmart_products=()):
         {"id": "all-time-lows", "products": lowest_prices},
         {"id": "deep-discounts", "products": discounted_products[:12]},
         {"id": "new-releases", "products": newest_observations},
-        {"id": "bestbuy-picks", "products": list(bestbuy_products)},
-        {"id": "walmart-picks", "products": list(walmart_products)},
+        {"id": "bestbuy-picks", "products": list(bestbuy_picks), "result_source": "live" if bestbuy_products else "catalog"},
+        {"id": "walmart-picks", "products": list(walmart_picks), "result_source": "live" if walmart_products else "catalog"},
     ]
 
 
@@ -271,6 +278,23 @@ def discover_homepage_products():
                 by_retailer[source].append(product)
 
     return by_retailer["bestbuy.com"], by_retailer["walmart.com"], errors
+
+
+def cached_homepage_products():
+    """Reuse retailer discovery briefly so repeated page loads do not refetch retailers."""
+    with _homepage_discovery_lock:
+        now = time.monotonic()
+        cached = _homepage_discovery_cache
+        if cached["products"] is not None and cached["expires_at"] > now:
+            bestbuy, walmart, errors = cached["products"]
+            return [dict(item) for item in bestbuy], [dict(item) for item in walmart], list(errors)
+
+        bestbuy, walmart, errors = discover_homepage_products()
+        _homepage_discovery_cache.update({
+            "expires_at": time.monotonic() + HOMEPAGE_DISCOVERY_CACHE_SECONDS,
+            "products": (bestbuy, walmart, errors),
+        })
+        return [dict(item) for item in bestbuy], [dict(item) for item in walmart], list(errors)
 
 
 def validate_retailer_products(products):
@@ -546,21 +570,22 @@ def apply_memory_condition(products, condition):
 
 
 def select_cheap_products(products):
-    """Keep the lowest-priced 30% of the already-matched product set."""
+    """Rank all already-matched products by price for an explicit cheap preference."""
     if not products:
         return []
     ordered = sorted(products, key=lambda product: float(product["price"]))
-    if len(ordered) == 1:
-        selected = ordered
-        reason = "Only matching product found; no relative price comparison is available."
-    else:
-        count = max(1, math.floor(len(ordered) * 0.49))
-        selected = ordered[:count]
-        reason = f"Among {len(ordered)} matching products, this is one of the lowest-priced {count}."
-    for product in selected:
+    count = len(ordered)
+    for index, product in enumerate(ordered):
         result_reason = product.get("match_reason", "")
+        reason = (
+            "Lowest-priced matching product."
+            if index == 0
+            else f"Ranked {index + 1} of {count} matching products by price."
+        )
         product["match_reason"] = " ".join(part for part in (result_reason, reason) if part)
-    return selected
+        product["_cheap_rank"] = index + 1
+        product["_cheap_count"] = count
+    return ordered
 
 
 def parse_price_condition(query):
@@ -661,10 +686,17 @@ def rerank_keyword_matches(query, ranked):
 
 def build_recommendation(products):
     """Explain the SBERT-assisted top choice using only observed listing data."""
-    if not products or "_sbert_score" not in products[0]:
+    if not products:
         return None
     chosen = products[0]
-    reasons = [f"Highest combined keyword and SBERT relevance among {len(products)} eligible matches."]
+    price_preference = chosen.get("_cheap_rank") == 1
+    if not price_preference and "_sbert_score" not in chosen:
+        return None
+    reasons = (
+        [f"Lowest-priced eligible match among {chosen.get('_cheap_count', len(products))} results."]
+        if price_preference
+        else [f"Highest combined keyword and SBERT relevance among {len(products)} eligible matches."]
+    )
     if chosen.get("match_reason"):
         reasons.append(chosen["match_reason"])
 
@@ -673,7 +705,13 @@ def build_recommendation(products):
         next_product = products[1]
         try:
             difference = Decimal(str(chosen["price"])) - Decimal(str(next_product["price"]))
-            if difference > 0:
+            if price_preference:
+                tradeoff = (
+                    f"The next option costs ${abs(difference):,.2f} more."
+                    if difference < 0
+                    else f"Same listed price as {next_product.get('title', 'the next option')}."
+                )
+            elif difference > 0:
                 tradeoff = (
                     f"Costs ${difference:,.2f} more than {next_product.get('title', 'the next option')}; "
                     "that listing ranked lower for request relevance."
@@ -694,6 +732,7 @@ def build_recommendation(products):
     return {
         "product_url": chosen.get("product_url"),
         "title": chosen.get("title"),
+        "method": "Price preference" if price_preference else "SBERT assisted recommendation",
         "reasons": reasons,
         "tradeoff": tradeoff,
     }
@@ -872,15 +911,42 @@ def search_response(query):
         # Another search should not use the five-minute pre-collection snapshot.
         with _catalog_lock:
             _catalog_cache["expires_at"] = 0
+        with _homepage_discovery_lock:
+            _homepage_discovery_cache["expires_at"] = 0
     candidates = load_saved_candidates(database, candidates)
     if candidates:
+        ranking_candidates = list(candidates)
+        catalog_urls = set()
+        if collection.get("errors"):
+            try:
+                retailer_sources = {"bestbuy.com", "walmart.com"}
+                live_urls = {product.get("product_url") for product in candidates}
+                catalog_candidates = [
+                    product for product in load_catalog(database)
+                    if product.get("source") in retailer_sources
+                    and product.get("product_url")
+                    and product.get("product_url") not in live_urls
+                ]
+                catalog_urls = {product["product_url"] for product in catalog_candidates}
+                ranking_candidates.extend(catalog_candidates)
+            except requests.RequestException:
+                logger.warning("Could not supplement partial live results from the stored catalog.")
+                collection["errors"].append("Stored catalog listings could not supplement the partial live results.")
         try:
-            products = search_products(query, catalog=candidates)
+            products = search_products(query, catalog=ranking_candidates)
         except (requests.RequestException, ValueError):
             # Collection may succeed even when optional Ollama expansion fails.
             # Keep the successfully saved records, but don't show unranked items.
-            products = search_products(query, catalog=candidates, allow_model=False)
+            products = search_products(query, catalog=ranking_candidates, allow_model=False)
             collection["errors"].append("Optional AI query expansion was unavailable; only direct matches are shown.")
+        catalog_matches = sum(product.get("product_url") in catalog_urls for product in products)
+        if catalog_matches:
+            collection["result_source"] = "mixed"
+            collection["catalog_matches"] = catalog_matches
+            collection["message"] = " ".join(part for part in (
+                collection.get("message", "").strip(),
+                f"Included {catalog_matches} matching saved retailer listing(s) to supplement partial live discovery.",
+            ) if part)
     else:
         products = []
 
@@ -926,19 +992,42 @@ def search_response(query):
     for product in products:
         product.pop("_sbert_score", None)
         product.pop("_hybrid_score", None)
+        product.pop("_cheap_rank", None)
+        product.pop("_cheap_count", None)
     return {"products": products, "collection": collection, "recommendation": recommendation}
 
 
 def walmart_products_response(query):
-    """Return validated Walmart search-card results for the homepage."""
-    records = discover_walmart_products(query, limit=6)
-    products = []
-    for record in records:
-        if not is_tech_product(record):
-            continue
-        record["category"] = infer_category(record["title"])
-        products.append(CollectedProduct.model_validate(record).model_dump(mode="json"))
-    return {"products": products}
+    """Return live Walmart results, or matching saved listings if discovery is blocked."""
+    discovery_message = None
+    try:
+        records = discover_walmart_products(query, limit=6)
+    except WalmartDiscoveryError as error:
+        records = []
+        discovery_message = str(error)
+
+    if records:
+        products = []
+        for record in records:
+            if not is_tech_product(record):
+                continue
+            record["category"] = infer_category(record["title"])
+            products.append(CollectedProduct.model_validate(record).model_dump(mode="json"))
+        if products:
+            return {"products": products, "result_source": "live"}
+
+    database = load_database_config()
+    catalog = [product for product in load_catalog(database) if product.get("source") == "walmart.com"]
+    products = search_products(query, catalog=catalog, allow_model=False) if catalog else []
+    return {
+        "products": products,
+        "result_source": "catalog",
+        "message": "Showing saved Walmart listings; prices reflect their last observation." if products else (
+            "Walmart live search is unavailable and no matching Walmart listings are saved."
+            if discovery_message else "No matching Walmart listings were found."
+        ),
+        "discovery_error": discovery_message,
+    }
 
 
 def bestbuy_products_response(query):
@@ -1023,9 +1112,7 @@ class SearchHandler(BaseHTTPRequestHandler):
         try:
             database = load_database_config()
             catalog = load_catalog(database)
-            bestbuy_products, walmart_products, discovery_errors = (
-                discover_homepage_products()
-            )
+            bestbuy_products, walmart_products, discovery_errors = cached_homepage_products()
             bestbuy_products = validate_retailer_products(bestbuy_products)
             walmart_products = validate_retailer_products(walmart_products)
             collections = deal_collections(

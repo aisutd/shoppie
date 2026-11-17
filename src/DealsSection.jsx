@@ -68,19 +68,27 @@ async function requestRetailerProducts(endpoint, query, signal) {
   })
   const data = await response.json()
   if (!response.ok) throw new Error(data.error || 'Could not load retailer products.')
-  return (data.products || []).filter(isTechProduct)
+  return {
+    products: (data.products || []).filter(isTechProduct),
+    resultSource: data.result_source || 'live',
+    message: data.message || '',
+  }
 }
 
-function RetailerPicks({ retailer, endpoint, initialProducts, homepageLoading, onPreview }) {
+function RetailerPicks({ retailer, endpoint, initialProducts, initialSource, homepageLoading, onPreview }) {
   const retailerId = retailer.toLowerCase().replaceAll(' ', '-')
   const [query, setQuery] = useState('laptop')
   const [products, setProducts] = useState(initialProducts.filter(isTechProduct))
+  const [resultSource, setResultSource] = useState(initialSource)
+  const [sourceMessage, setSourceMessage] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
     setProducts(initialProducts.filter(isTechProduct))
-  }, [initialProducts])
+    setResultSource(initialSource)
+    setSourceMessage('')
+  }, [initialProducts, initialSource])
 
   async function handleSearch(event) {
     event.preventDefault()
@@ -90,7 +98,10 @@ function RetailerPicks({ retailer, endpoint, initialProducts, homepageLoading, o
     setIsLoading(true)
     setError('')
     try {
-      setProducts(await requestRetailerProducts(endpoint, searchQuery))
+      const result = await requestRetailerProducts(endpoint, searchQuery)
+      setProducts(result.products)
+      setResultSource(result.resultSource)
+      setSourceMessage(result.message)
     } catch (loadError) {
       setError(loadError.message || 'Could not load retailer products.')
     } finally {
@@ -103,7 +114,7 @@ function RetailerPicks({ retailer, endpoint, initialProducts, homepageLoading, o
       <div className="mb-5 flex flex-wrap items-end justify-between gap-4 border-b border-blue-100/10 pb-4">
         <div>
           <h3 id={`${retailerId}-picks-heading`} className="text-xl font-semibold">{retailer} picks</h3>
-          <p className="mt-1 text-sm text-blue-100/55">Live listings and prices from {retailer} search results.</p>
+          <p className="mt-1 text-sm text-blue-100/55">{resultSource === 'catalog' ? `Saved ${retailer} listings; prices reflect their last observation.` : `Live listings and prices from ${retailer} search results.`}</p>
         </div>
         <form className="flex w-full gap-2 sm:w-auto" role="search" onSubmit={handleSearch}>
           <label htmlFor={`${retailerId}-product-search`} className="sr-only">Search {retailer} products</label>
@@ -122,6 +133,8 @@ function RetailerPicks({ retailer, endpoint, initialProducts, homepageLoading, o
           </button>
         </form>
       </div>
+
+      {sourceMessage && <p className="mb-4 text-sm text-amber-100/80" role="status">{sourceMessage}</p>}
 
       {error ? (
         <div className="rounded-2xl border border-rose-200/20 bg-rose-950/20 px-5 py-5 text-sm text-rose-100" role="alert">
@@ -147,6 +160,7 @@ function RetailerPicks({ retailer, endpoint, initialProducts, homepageLoading, o
                   </div>
                   <h4 className="mt-1 line-clamp-2 text-sm font-semibold leading-5">{product.title}</h4>
                   <p className="mt-2 line-clamp-2 text-xs leading-5 text-blue-100/60">{getProductDescription(product)}</p>
+                  {resultSource === 'catalog' && product.scraped_at && <p className="mt-2 text-xs text-blue-100/45">Last observed: {new Date(product.scraped_at).toLocaleDateString()}</p>}
                   <p className="mt-auto flex flex-wrap items-baseline gap-2 pt-2">
                     <span className="text-xl font-semibold">{formatPrice(product.price, product.currency)}</span>
                     {product.regular_price && <span className="text-sm text-blue-100/45 line-through">{formatPrice(product.regular_price, product.currency)}</span>}
@@ -170,6 +184,7 @@ function DealsSection() {
   const [selectedProduct, setSelectedProduct] = useState(null)
   const carouselRefs = useRef({})
   const [productsByCollection, setProductsByCollection] = useState({})
+  const [sourcesByCollection, setSourcesByCollection] = useState({})
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
   const [discoveryErrors, setDiscoveryErrors] = useState([])
@@ -191,7 +206,11 @@ function DealsSection() {
         const collectionsById = Object.fromEntries(
           (data.collections || []).map((collection) => [collection.id, (collection.products || []).filter(isTechProduct)]),
         )
+        const sources = Object.fromEntries(
+          (data.collections || []).map((collection) => [collection.id, collection.result_source || 'live']),
+        )
         setProductsByCollection(collectionsById)
+        setSourcesByCollection(sources)
         setDiscoveryErrors(data.discovery_errors || [])
       } catch (loadError) {
         if (loadError.name !== 'AbortError') {
@@ -226,8 +245,8 @@ function DealsSection() {
         </div>
 
         <div className="space-y-14">
-          <RetailerPicks retailer="Best Buy" endpoint="/api/bestbuy-search" initialProducts={productsByCollection['bestbuy-picks'] || EMPTY_PRODUCTS} homepageLoading={isLoading} onPreview={setSelectedProduct} />
-          <RetailerPicks retailer="Walmart" endpoint="/api/walmart-search" initialProducts={productsByCollection['walmart-picks'] || EMPTY_PRODUCTS} homepageLoading={isLoading} onPreview={setSelectedProduct} />
+          <RetailerPicks retailer="Best Buy" endpoint="/api/bestbuy-search" initialProducts={productsByCollection['bestbuy-picks'] || EMPTY_PRODUCTS} initialSource={sourcesByCollection['bestbuy-picks'] || 'live'} homepageLoading={isLoading} onPreview={setSelectedProduct} />
+          <RetailerPicks retailer="Walmart" endpoint="/api/walmart-search" initialProducts={productsByCollection['walmart-picks'] || EMPTY_PRODUCTS} initialSource={sourcesByCollection['walmart-picks'] || 'live'} homepageLoading={isLoading} onPreview={setSelectedProduct} />
           {error && (
             <div className="rounded-2xl border border-rose-200/20 bg-rose-950/20 px-5 py-5 text-center text-sm text-rose-100" role="alert">
               <p>{error}</p>
