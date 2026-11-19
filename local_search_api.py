@@ -887,6 +887,23 @@ class SearchHandler(BaseHTTPRequestHandler):
             self.send_json(500, {"error": "Local search failed. Check the API terminal for details."})
 
     def do_GET(self):
+        if self.path == "/api/catalog":
+            try:
+                database = load_database_config()
+                catalog = load_catalog(database)
+                self.send_json(200, {"products": catalog, "total": len(catalog)})
+            except ConfigurationError as error:
+                self.send_json(503, {"error": str(error)})
+            except requests.ConnectionError:
+                self.send_json(503, {"error": "Could not connect to the product catalog. Check the local API configuration."})
+            except requests.Timeout:
+                self.send_json(504, {"error": "Loading the product catalog timed out. Try again in a moment."})
+            except requests.HTTPError:
+                self.send_json(502, {"error": "The product catalog request was rejected. Check the local API configuration."})
+            except requests.RequestException:
+                self.send_json(502, {"error": "The product catalog request failed. Check the local API connection."})
+            return
+
         if self.path != "/api/deals":
             self.send_json(404, {"error": "Not found."})
             return

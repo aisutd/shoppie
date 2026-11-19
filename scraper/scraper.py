@@ -230,6 +230,10 @@ def fetch_rendered_page(url, session=None):
                     page = session.page()
                     continue
                 raise
+        if identify_product(url)[0] == "target":
+            # Target defers the PDP price module until the page is foregrounded.
+            # Bring this ordinary browser tab forward so its public page can finish loading.
+            page.bring_to_front()
         if response is None or response.status != 200:
             detail = "Chrome navigation returned no response." if response is None else f"Chrome received HTTP {response.status}."
             raise ScraperFailure("Browser did not receive a successful product page.", "http_status_error", detail)
@@ -352,20 +356,29 @@ def meta(soup, field):
 
 
 def target_embedded_title(soup, product_id):
-    """Read only Target layout title modules explicitly bound to this TCIN.
-
-    Verified in the real 91122087 page's __NEXT_DATA__ on 2026-10-14.
-    Do not recursively search arbitrary JSON for prices or recommendation titles.
-    """
+    """Read a Target title only from product data explicitly bound to this TCIN."""
     script = soup.select_one('script#__NEXT_DATA__[type="application/json"]')
     if script is None:
         return None
     try:
-        queries = json.loads(script.get_text())["props"]["dehydratedState"]["queries"]
+        root = json.loads(script.get_text())
+        queries = root.get("props", {}).get("dehydratedState", {}).get("queries", [])
         titles = set()
         for query in queries:
             payload = query.get("state", {}).get("data") or {}
-            layout = (payload.get("data") or {}).get("layout") or {}
+            data = payload.get("data") or {}
+            layout = data.get("layout") or data
+            # Current Target pages expose product details through the core
+            # datasource module. Bind its title to the selected TCIN.
+            for module in layout.get("data_source_modules", []):
+                if module.get("module_type") != "ProductDetailWebDatasourceCore":
+                    continue
+                product = module.get("module_data", {}).get("data", {}).get("product", {})
+                item = product.get("item", {})
+                title = item.get("product_description", {}).get("title")
+                if str(product.get("tcin", "")) == product_id and isinstance(title, str) and title.strip():
+                    titles.add(title.strip())
+            # Retain support for the older layout module shape used by saved pages.
             for zone in layout.get("zones", []):
                 for group in zone.get("module_groups", []):
                     for module in group.get("modules", []):
@@ -518,16 +531,24 @@ def extract_product(html, url):
     record["price"] = meta(soup, "price:amount") or meta(soup, "price")
     record["currency"] = meta(soup, "price:currency") or meta(soup, "priceCurrency")
     record["availability"] = meta(soup, "availability")
+    if retailer == "target" and record["currency"] is None and record["price"] is not None:
+        # Target's US product metadata may publish the amount without a currency.
+        # Keep this inference limited to the US Target domain and its exact page metadata.
+        record["currency"] = "USD"
     price_selectors = {
         "bestbuy": '[data-testid="customer-price"]',
         "target": '[data-test="product-price"]',
     }
     if retailer in price_selectors and record["price"] is None:
         displayed = text(context, price_selectors[retailer])
-        # Match only a single whole price in the named main-product price element.
-        if displayed and re.fullmatch(r"(?:US\$|\$)?(?:\d+|\d{1,3}(?:,\d{3})+)\.\d{2}", displayed):
-            record["price"] = re.sub(r"^(US\$|\$)", "", displayed).replace(",", "")
-            if displayed.startswith("US$"):
+        # Match only one whole price in the retailer's named main-product price
+        # element. Target's US page commonly renders a bare dollar sign (and may
+        # insert whitespace between it and the amount); the domain itself fixes
+        # the currency to USD once that exact price element has matched.
+        price_pattern = r"(?:US\$\s*|\$\s*)?(?:\d+|\d{1,3}(?:,\d{3})+)\.\d{2}"
+        if displayed and re.fullmatch(price_pattern, displayed):
+            record["price"] = re.sub(r"^(?:US\$\s*|\$\s*)", "", displayed).replace(",", "")
+            if displayed.startswith("US$") or retailer == "target":
                 record["currency"] = "USD"
     if retailer == "amazon":
         displayed_price, displayed_currency = amazon_price(context, product_id)

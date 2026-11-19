@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { getProductDescription } from './productDescription'
+import { FilterSortPanel } from './filter-sort/index.js'
 
 const collections = [
   {
@@ -166,6 +167,11 @@ function DealsSection() {
   const [error, setError] = useState('')
   const [discoveryErrors, setDiscoveryErrors] = useState([])
   const [reloadKey, setReloadKey] = useState(0)
+  const [catalogProducts, setCatalogProducts] = useState(EMPTY_PRODUCTS)
+  const [visibleCatalogProducts, setVisibleCatalogProducts] = useState(EMPTY_PRODUCTS)
+  const [catalogLoading, setCatalogLoading] = useState(true)
+  const [catalogError, setCatalogError] = useState('')
+  const [catalogReloadKey, setCatalogReloadKey] = useState(0)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -198,6 +204,32 @@ function DealsSection() {
     return () => controller.abort()
   }, [reloadKey])
 
+  useEffect(() => {
+    const controller = new AbortController()
+
+    async function loadCatalog() {
+      setCatalogLoading(true)
+      setCatalogError('')
+      try {
+        const response = await fetch('/api/catalog', { signal: controller.signal })
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.error || 'Could not load all catalog products.')
+        if (!Array.isArray(data.products)) throw new Error('The catalog API returned an invalid product list.')
+        setCatalogProducts(data.products)
+        setVisibleCatalogProducts(data.products)
+      } catch (loadError) {
+        if (loadError.name !== 'AbortError') {
+          setCatalogError(loadError.message || 'Could not load all catalog products.')
+        }
+      } finally {
+        if (!controller.signal.aborted) setCatalogLoading(false)
+      }
+    }
+
+    loadCatalog()
+    return () => controller.abort()
+  }, [catalogReloadKey])
+
   const scrollProducts = (collectionId, direction) => {
     const carousel = carouselRefs.current[collectionId]
     if (!carousel) return
@@ -216,6 +248,62 @@ function DealsSection() {
           <h2 id="discover-heading" className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Discover great finds</h2>
           <p className="mx-auto mt-3 max-w-xl text-blue-100/65">Browse real products from our catalog, with current prices and retailer links.</p>
         </div>
+
+        <section className="mb-16" aria-labelledby="catalog-heading">
+          <div className="mb-5 flex flex-wrap items-end justify-between gap-4 border-b border-blue-100/10 pb-4">
+            <div>
+              <h3 id="catalog-heading" className="text-xl font-semibold">Browse all products</h3>
+              <p className="mt-1 text-sm text-blue-100/55">Filter and sort every product currently in the Shoppie catalog across all categories and retailers.</p>
+            </div>
+            <span className="text-xs font-medium uppercase tracking-wider text-blue-200/60">
+              {visibleCatalogProducts.length} {visibleCatalogProducts.length === 1 ? 'product' : 'products'}
+            </span>
+          </div>
+
+          <FilterSortPanel
+            products={catalogProducts}
+            onProductsChange={setVisibleCatalogProducts}
+            resetKey={catalogProducts}
+            className="mb-6"
+          />
+
+          {catalogLoading ? (
+            <p className="rounded-2xl border border-blue-100/10 bg-[#0b1d35]/50 px-5 py-8 text-center text-sm text-blue-100/60" role="status">
+              Loading all catalog products…
+            </p>
+          ) : catalogError ? (
+            <div className="rounded-2xl border border-rose-200/20 bg-rose-950/20 px-5 py-5 text-sm text-rose-100" role="alert">
+              <p>{catalogError}</p>
+              <button type="button" onClick={() => setCatalogReloadKey((key) => key + 1)} className="mt-3 rounded-lg border border-rose-100/20 px-4 py-2 font-semibold transition hover:bg-white/5">
+                Try again
+              </button>
+            </div>
+          ) : visibleCatalogProducts.length === 0 ? (
+            <p className="rounded-2xl border border-blue-100/10 bg-[#0b1d35]/50 px-5 py-8 text-center text-sm text-blue-100/60">
+              {catalogProducts.length === 0 ? 'The catalog is empty.' : 'No products match these filters. Try changing or clearing a filter.'}
+            </p>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {visibleCatalogProducts.map((product, index) => (
+                <article key={product.id || product.product_url} className={`anim-scale-in d-${(index % 3) + 1} flex min-h-[25rem] flex-col overflow-hidden rounded-2xl border border-blue-100/10 bg-[#0b1d35]/70 shadow-lg shadow-black/10 transition hover:-translate-y-1 hover:border-blue-200/30 hover:bg-[#102746] hover:shadow-xl hover:shadow-black/20`}>
+                  <ProductArtwork product={product} badge={product.source} className="aspect-square shrink-0" />
+                  <div className="flex flex-1 flex-col p-5">
+                    <p className="text-xs font-medium uppercase tracking-wider text-blue-200/55">{(product.category || 'Product').replaceAll('-', ' ')}</p>
+                    <h4 className="mt-2 line-clamp-3 text-lg font-semibold">{product.title}</h4>
+                    <p className="mt-2 line-clamp-3 text-sm leading-6 text-blue-100/60">{getProductDescription(product)}</p>
+                    {product.scraped_at && <p className="mt-2 text-xs text-blue-100/50">Observed: {new Date(product.scraped_at).toLocaleDateString()}</p>}
+                    <p className="mt-auto flex items-baseline gap-2 pt-4">
+                      <span className="text-2xl font-semibold">{formatPrice(product.price, product.currency)}</span>
+                    </p>
+                    <a href={product.product_url} target="_blank" rel="noreferrer" className="mt-4 block w-full rounded-xl border border-blue-200/15 bg-blue-400/10 px-4 py-2.5 text-center text-sm font-semibold text-blue-100 transition hover:bg-blue-400/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300">
+                      View at {product.source || 'retailer'} ↗
+                    </a>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
 
         <div className="space-y-14">
           <RetailerPicks retailer="Best Buy" endpoint="/api/bestbuy-search" initialProducts={productsByCollection['bestbuy-picks'] || EMPTY_PRODUCTS} homepageLoading={isLoading} />

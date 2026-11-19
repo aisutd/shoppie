@@ -1,5 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { getProductDescription } from './productDescription'
+import { FilterSortPanel } from './filter-sort/index.js'
+
+const EMPTY_PRODUCTS = []
 
 const categoryIcons = {
   audio: '🎧',
@@ -49,20 +52,13 @@ function formatPrice(price, currency = 'USD') {
 }
 
 function SearchResults({ search, onBack, onRefined }) {
-  const products = search?.products || []
-  const retailerGroups = [
-    { source: 'bestbuy.com', name: 'Best Buy' },
-    { source: 'walmart.com', name: 'Walmart' },
-  ].map((retailer) => ({
-    ...retailer,
-    products: products.filter((product) => product.source === retailer.source),
-  }))
-  const otherProducts = products.filter(
-    (product) => !retailerGroups.some((retailer) => retailer.source === product.source),
-  )
-  if (otherProducts.length) {
-    retailerGroups.push({ source: 'other', name: 'Other retailers', products: otherProducts })
-  }
+  const products = search?.products || EMPTY_PRODUCTS
+  const [filteredResult, setFilteredResult] = useState(() => ({ source: products, items: products }))
+  const visibleProducts = filteredResult.source === products ? filteredResult.items : products
+  const handleProductsChange = useCallback((items) => {
+    setFilteredResult({ source: products, items })
+  }, [products])
+  const retailerGroups = [{ source: 'all', name: 'Products', heading: 'Products', products: visibleProducts }]
   const collection = search?.collection
   const [selectedProduct, setSelectedProduct] = useState(null)
   const [followUp, setFollowUp] = useState('')
@@ -118,7 +114,7 @@ function SearchResults({ search, onBack, onRefined }) {
         <div className="mb-10 border-b border-blue-100/10 pb-5">
           <h2 id="search-results-heading" className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Results for “{search?.query}”</h2>
           <p className="mt-3 text-blue-100/65" aria-live="polite">
-            {products.length} {products.length === 1 ? 'product' : 'products'} matched
+            {visibleProducts.length} {visibleProducts.length === 1 ? 'product' : 'products'} matched
             {collection?.result_source === 'live' ? ' from live retailer results' : ' in the stored catalog'}
           </p>
           {collection && (
@@ -135,6 +131,13 @@ function SearchResults({ search, onBack, onRefined }) {
             </div>
           )}
         </div>
+
+        <FilterSortPanel
+          products={products}
+          onProductsChange={handleProductsChange}
+          resetKey={search}
+          className="mb-8"
+        />
 
         <form
           className="mb-8 rounded-2xl border border-blue-100/10 bg-[#0b1d35]/70 p-5 sm:flex sm:items-end sm:gap-4"
@@ -175,12 +178,14 @@ function SearchResults({ search, onBack, onRefined }) {
           {retailerGroups.map((retailer) => (
             <section key={retailer.source} aria-labelledby={`results-${retailer.source}`}>
               <div className="mb-5 flex flex-wrap items-end justify-between gap-4 border-b border-blue-100/10 pb-4">
-                <h3 id={`results-${retailer.source}`} className="text-xl font-semibold">{retailer.name} picks</h3>
+                <h3 id={`results-${retailer.source}`} className="text-xl font-semibold">{retailer.heading || `${retailer.name} picks`}</h3>
                 <span className="text-xs font-medium uppercase tracking-wider text-blue-200/60">{retailer.products.length} picks</span>
               </div>
               {retailer.products.length === 0 ? (
                 <p className="rounded-2xl border border-blue-100/10 bg-[#0b1d35]/50 px-5 py-8 text-center text-sm text-blue-100/60">
-                  No matching {retailer.name} listings for this search.
+                  {products.length > 0
+                    ? 'No products match these filters. Try changing or clearing a filter.'
+                    : 'Try a product name or model number. Live searches may not return a listing that meets all requested specifications.'}
                 </p>
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -210,11 +215,6 @@ function SearchResults({ search, onBack, onRefined }) {
               )}
             </section>
           ))}
-          {products.length === 0 && (
-            <p className="text-center text-sm text-blue-100/60">
-              Try a product name or model number. Live searches may not return a listing that meets all requested specifications.
-            </p>
-          )}
         </div>
       </div>
 
