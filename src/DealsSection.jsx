@@ -10,8 +10,6 @@ const collections = [
   { id: 'walmart-picks', label: 'Walmart Picks', icon: 'spark', retailer: 'Walmart', endpoint: '/api/walmart-search' },
   { id: 'all-time-lows', label: 'Lowest Current Prices', icon: 'trend',
     description: 'The lowest listed prices in the current catalog.' },
-  { id: 'deep-discounts', label: 'High Discounts', icon: 'percent',
-    description: 'Listings with verified regular and sale prices.' },
   { id: 'new-releases', label: 'Recently Observed', icon: 'clock',
     description: 'The latest product observations in the catalog.' },
 ]
@@ -62,11 +60,10 @@ async function requestRetailerProducts(endpoint, query, signal) {
   return {
     products: (data.products || []).filter(isTechProduct),
     collection: data.collection,
-    discounts: (data.discounts || []).filter(isTechProduct),
   }
 }
 
-function RetailerPicks({ retailer, endpoint, initialProducts, homepageLoading, onPreview, onDiscounts }) {
+function RetailerPicks({ retailer, endpoint, initialProducts, homepageLoading, onPreview }) {
   const retailerId = retailer.toLowerCase().replaceAll(' ', '-')
   const [query, setQuery] = useState('')
   const [products, setProducts] = useState(initialProducts.filter(isTechProduct))
@@ -90,7 +87,6 @@ function RetailerPicks({ retailer, endpoint, initialProducts, homepageLoading, o
       const result = await requestRetailerProducts(endpoint, searchQuery)
       setProducts(result.products)
       setSearchStatus(result.collection)
-      onDiscounts(endpoint, result.discounts)
     } catch (loadError) {
       setError(loadError.message || 'Could not load retailer products.')
     } finally {
@@ -147,18 +143,6 @@ function DealsSection({ isActive = true, footer } = {}) {
   const [error, setError] = useState('')
   const [discoveryErrors, setDiscoveryErrors] = useState([])
   const [reloadKey, setReloadKey] = useState(0)
-  const [discountsByRetailer, setDiscountsByRetailer] = useState({})
-
-  function rememberDiscounts(endpoint, discounts) {
-    setDiscountsByRetailer(current => ({ ...current, [endpoint]: discounts }))
-  }
-
-  const discounts = new Map()
-  for (const product of [...(productsByCollection['deep-discounts'] || EMPTY_PRODUCTS), ...Object.values(discountsByRetailer).flat()]) {
-    discounts.set(product.product_url, product)
-  }
-  const highDiscounts = [...discounts.values()].sort((left, right) =>
-    right.savings_percent - left.savings_percent || left.title.localeCompare(right.title)).slice(0, 12)
 
   useEffect(() => {
     if (!isActive) setSelectedProduct(null)
@@ -215,14 +199,14 @@ function DealsSection({ isActive = true, footer } = {}) {
         </div>
       )}
       {collections.map(collection => {
-        const products = collection.id === 'deep-discounts' ? highDiscounts : productsByCollection[collection.id] || EMPTY_PRODUCTS
+        const products = productsByCollection[collection.id] || EMPTY_PRODUCTS
         return (
           <div key={collection.id} className="discover-collection" id={`discover-panel-${collection.id}`}
             hidden={activeCollection !== allCollections && activeCollection !== collection.id}>
             <div className="collection-content">
               {collection.retailer ? (
                 <RetailerPicks retailer={collection.retailer} endpoint={collection.endpoint}
-                  initialProducts={products} homepageLoading={isLoading} onPreview={setSelectedProduct} onDiscounts={rememberDiscounts} />
+                  initialProducts={products} homepageLoading={isLoading} onPreview={setSelectedProduct} />
               ) : (
                 <>
                   <div className="collection-heading">
@@ -235,9 +219,7 @@ function DealsSection({ isActive = true, footer } = {}) {
                   {isLoading ? (
                     <p className="state-box" role="status">Loading real products from the catalog…</p>
                   ) : error ? null : products.length === 0 ? (
-                    <p className="state-box">{collection.id === 'deep-discounts'
-                      ? 'No verified discounts yet. Search Best Buy or Walmart to check for current discounts.'
-                      : 'No products are available in this section yet.'}</p>
+                    <p className="state-box">No products are available in this section yet.</p>
                   ) : (
                     <ProductRail products={products} title={collection.label} onPreview={setSelectedProduct}
                       showObserved={collection.id === 'new-releases'} />

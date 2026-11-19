@@ -185,21 +185,25 @@ test('sequential refinements retain original intent and replace previous result 
   assert.equal(search.products[0].price, 799)
 })
 
-test('Discover preserves every collection, retailer searches and full product details', async () => {
+test('Discover shows four collections and preserves retailer searches and full product details', async () => {
   const good = { title: 'Unknown ZX100', category: 'other', price: '99', currency: 'USD',
     description: 'Full description '.repeat(30), product_url: 'https://www.bestbuy.com/product/test/TEST',
     image_url: 'https://example.com/image.png', source: 'bestbuy.com', scraped_at: '2026-11-13T12:00:00Z',
     regular_price: '120', savings_percent: 17.5, match_reason: 'Exact model match' }
   const mug = { ...good, title: 'Ceramic Mug', category: 'electronics' }
+  const discountOnly = { ...good, title: 'Discount collection only', product_url: `${good.product_url}2` }
   const requests = []
   const globals = {
     AbortController,
     fetch: async (endpoint, options) => {
       requests.push([endpoint, options.method, options.body && JSON.parse(options.body).query])
       return { ok: true, headers: { get: () => 'application/json' }, json: async () => ({
-        collections: ['all-time-lows', 'bestbuy-picks'].map(id => ({ id, products: [mug, good] })),
+        collections: [
+          ...['all-time-lows', 'bestbuy-picks'].map(id => ({ id, products: [mug, good] })),
+          { id: 'deep-discounts', products: [discountOnly] },
+        ],
         products: [mug, good],
-        discounts: [good],
+        discounts: [discountOnly],
       }) }
     },
   }
@@ -213,10 +217,12 @@ test('Discover preserves every collection, retailer searches and full product de
   assert.equal(picks.props.initialProducts[0], good)
   assert.ok(!JSON.stringify(tree).includes('Ceramic Mug'))
   const tabs = find(tree, n => n.type === './CollectionPicker.jsx').props
-  assert.equal(Array.from(tabs.items, item => item.id).join(','), 'all,bestbuy-picks,walmart-picks,all-time-lows,deep-discounts,new-releases')
-  assert.equal(tabs.items[0].label, 'No Filters')
+  assert.deepEqual(Array.from(tabs.items, item => item.label), [
+    'No Filters', 'Best Buy Picks', 'Walmart Picks', 'Lowest Current Prices', 'Recently Observed',
+  ])
   assert.equal(tabs.selected, 'all')
-  assert.equal(tabs.items.find(item => item.id === 'deep-discounts').label, 'High Discounts')
+  assert.equal(find(tree, n => n.props?.id === 'discover-panel-deep-discounts'), undefined)
+  assert.ok(!JSON.stringify(tree).includes(discountOnly.title))
   const collections = tabs.items.slice(1)
   for (const selected of [tabs.items[0], ...collections, tabs.items[0]]) {
     tabs.onSelect(selected.id)
@@ -246,8 +252,7 @@ test('Discover preserves every collection, retailer searches and full product de
   // Exercise the real retailer form without exporting a production-only test API.
   for (const { retailer, endpoint } of tabs.items.filter(item => item.retailer)) {
     const component = harness('DealsSection.jsx', globals, '\nexport { RetailerPicks };')
-    const props = { retailer, endpoint, initialProducts: [mug, good], homepageLoading: false, onPreview() {},
-      onDiscounts: picks.props.onDiscounts }
+    const props = { retailer, endpoint, initialProducts: [mug, good], homepageLoading: false, onPreview() {} }
     tree = component.renderExport('RetailerPicks', props)
     assert.ok(!JSON.stringify(tree).includes('Ceramic Mug'))
     const input = find(tree, n => n.type === 'input')
@@ -263,15 +268,11 @@ test('Discover preserves every collection, retailer searches and full product de
     tree = component.renderExport('RetailerPicks', props)
     assert.ok(!JSON.stringify(tree).includes('Ceramic Mug'))
     assert.ok(JSON.stringify(tree).includes(good.title))
+    assert.ok(!JSON.stringify(tree).includes(discountOnly.title))
   }
   assert.deepEqual(requests, [
     ['/api/deals', undefined, undefined], ['/api/bestbuy-search', 'POST', 'ZX100'], ['/api/walmart-search', 'POST', 'ZX100'],
   ])
-  tabs.onSelect('deep-discounts')
-  tree = deals.render()
-  const discountRail = find(tree, n => n.props?.title === 'High Discounts')
-  assert.equal(discountRail.props.products.length, 1)
-  assert.equal(discountRail.props.products[0], good)
 })
 
 test('header uses the supplied proportional dark logo and favicon is configured', () => {
