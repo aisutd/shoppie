@@ -3,6 +3,7 @@
 import json
 import logging
 import math
+import os
 import re
 import threading
 import time
@@ -15,6 +16,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import requests
 
+from normalizer.embeddings import semantic_scores
 from scraper.config import ConfigurationError, load_database_config
 from scraper.live_search import CollectedProduct, collect_live_products, infer_category, is_tech_product
 from scraper.bestbuy_search import DiscoveryError, discover_bestbuy_products
@@ -33,6 +35,7 @@ CATALOG_CACHE_SECONDS = 300
 CATALOG_PAGE_SIZE = 500
 MODEL_LOOKUP_LIMIT = 60
 FUZZY_TOKEN_THRESHOLD = 0.72
+SEMANTIC_WEIGHT = 0.35
 # These manufacturer names in typed product searches are explicit identity evidence.
 SEARCH_BRANDS = {"acer", "apple", "asus", "bose", "dell", "hp", "lenovo", "lg", "samsung", "sony"}
 SEARCH_STOP_WORDS = {
@@ -646,6 +649,31 @@ def apply_price_condition(products, condition):
     return filtered
 
 
+def rerank_keyword_matches(query, ranked):
+    """Blend keyword and semantic relevance for eligible listings."""
+    if len(ranked) < 2 or os.getenv("SHOPPIE_ENABLE_SBERT") != "1":
+        return ranked
+
+    try:
+        scores = semantic_scores(query, [product for _, product in ranked])
+        if len(scores) != len(ranked) or not all(math.isfinite(score) for score in scores):
+            raise ValueError("Unexpected semantic scores")
+        blended = [
+            (1 - SEMANTIC_WEIGHT) * keyword
+            + SEMANTIC_WEIGHT * min(1.0, max(0.0, semantic))
+            for (keyword, _), semantic in zip(ranked, scores, strict=True)
+        ]
+    except Exception as error:
+        logger.warning("SBERT unavailable (%s); using keyword ranking.", type(error).__name__)
+        return ranked
+
+    order = sorted(range(len(ranked)), key=blended.__getitem__, reverse=True)
+    reranked = [ranked[index] for index in order]
+    score, product = reranked[0]
+    reranked[0] = (score, {**product, "_sbert_ranked": True})
+    return reranked
+
+
 def search_products(query, catalog=None, allow_model=True):
     original_query = query
     candidate_scope = catalog is not None
@@ -696,6 +724,8 @@ def search_products(query, catalog=None, allow_model=True):
     if ranked:
         if cheap_preference:
             return select_cheap_products([product for _, product in ranked])
+        if candidate_scope and allow_model:
+            ranked = rerank_keyword_matches(original_query, ranked)
         return [product for _, product in ranked]
 
     if (price_condition or memory_condition or cheap_preference) and not query_tokens:
@@ -883,7 +913,24 @@ def search_response(query):
         collection["message"] = collection.get("message", "") + (
             " No listings could be verified against your product type and requested specifications; unrelated products were excluded."
         )
-    return {"products": products, "collection": collection}
+    recommendation = None
+    if products:
+        chosen = products[0]
+        used_sbert = chosen.pop("_sbert_ranked", False)
+        cheapest, _ = parse_cheap_preference(query)
+        if cheapest:
+            reason = "This listing had the lowest listed price among the matching products."
+        elif used_sbert:
+            reason = (
+                "This listing had the strongest combined keyword and semantic match "
+                "among the products that passed your search filters."
+            )
+        elif len(products) == 1:
+            reason = "This was the only listing returned for your search."
+        else:
+            reason = "This listing appeared first in the standard search ranking."
+        recommendation = {"product_url": chosen["product_url"], "reason": reason}
+    return {"products": products, "collection": collection, "recommendation": recommendation}
 
 
 def retailer_products_response(query, source, discover):

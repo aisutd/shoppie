@@ -8,6 +8,10 @@ const resultsPerBatch = 12
 
 function SearchResults({ search, onNewSearch, onRefined, isActive = true }) {
   const products = search?.products || []
+  const recommendation = search?.recommendation
+  const recommendedProduct = recommendation
+    ? products.find(product => product.product_url === recommendation.product_url)
+    : undefined
   const retailerGroups = [
     { source: 'bestbuy.com', name: 'Best Buy' },
     { source: 'walmart.com', name: 'Walmart' },
@@ -65,6 +69,7 @@ function SearchResults({ search, onNewSearch, onRefined, isActive = true }) {
         query: refinedQuery,
         products: data.products || [],
         collection: data.collection || null,
+        recommendation: data.recommendation ?? null,
       })
       setFollowUp('')
       setVisibleCount(resultsPerBatch)
@@ -104,6 +109,16 @@ function SearchResults({ search, onNewSearch, onRefined, isActive = true }) {
           {refineError && <p className="field-feedback error-text" role="alert">{refineError}</p>}
         </div>
       </div>
+      {recommendedProduct && (
+        <section className="search-recommendation" aria-labelledby="search-recommendation-heading">
+          <ProductCard product={recommendedProduct} onPreview={setSelectedProduct} />
+          <div>
+            <h3 id="search-recommendation-heading">Recommended product</h3>
+            <p><strong>Why this product?</strong> {recommendation.reason}</p>
+            {recommendedProduct.match_reason && <p>{recommendedProduct.match_reason}</p>}
+          </div>
+        </section>
+      )}
       {collection && (
         <div className="collection-status" role="status">
           <p>{collection.message}</p>
